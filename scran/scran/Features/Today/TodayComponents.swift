@@ -1,0 +1,126 @@
+//
+//  TodayComponents.swift
+//  scran
+//
+//  The Today hero pieces: calorie ring, macro bars, and the "evidence bar" that
+//  shows what proportion of today's calories are verified / database / estimate.
+//
+
+import SwiftUI
+
+struct CalorieRing: View {
+    let consumed: Double
+    let target: Double
+
+    private var progress: Double { target > 0 ? min(consumed / target, 1) : 0 }
+    private var remaining: Double { target - consumed }
+    private var over: Bool { remaining < 0 }
+    private var ringColor: Color { over ? ScranColor.error : ScranColor.verified }
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(ScranColor.lineStrong, lineWidth: 14)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(ringColor, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .shadow(color: ringColor.opacity(0.5), radius: 12)
+                .animation(.snappy(duration: 0.4), value: progress)
+            VStack(spacing: 2) {
+                Text(ScranFormat.int(abs(remaining)))
+                    .font(ScranFont.mono(44, weight: .bold, relativeTo: .largeTitle))
+                    .foregroundStyle(ringColor)
+                    .shadow(color: ringColor.opacity(0.5), radius: 12)
+                    .contentTransition(.numericText())
+                Text(over ? "kcal over" : "kcal left")
+                    .font(ScranFont.mono(13, relativeTo: .footnote))
+                    .foregroundStyle(ScranColor.textMuted)
+                Text("\(ScranFormat.int(consumed)) / \(ScranFormat.int(target))")
+                    .font(ScranFont.mono(12, relativeTo: .caption))
+                    .foregroundStyle(ScranColor.textMuted)
+                    .padding(.top, 4)
+            }
+        }
+        .frame(width: 196, height: 196)
+        .accessibilityElement()
+        .accessibilityLabel("\(ScranFormat.int(abs(remaining))) kilocalories \(over ? "over" : "left"), \(ScranFormat.int(consumed)) of \(ScranFormat.int(target)) eaten")
+    }
+}
+
+struct MacroBar: View {
+    let label: String
+    let consumed: Double
+    let target: Double
+    var tint: Color = ScranColor.textPrimary
+
+    private var progress: Double { target > 0 ? min(consumed / target, 1) : 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label).font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
+                    .foregroundStyle(ScranColor.textMuted)
+                Spacer()
+                Text("\(ScranFormat.int(consumed))/\(ScranFormat.int(target))g")
+                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
+                    .foregroundStyle(ScranColor.textPrimary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(ScranColor.lineStrong).frame(height: 6)
+                    Capsule().fill(tint).frame(width: geo.size.width * progress, height: 6)
+                }
+            }
+            .frame(height: 6)
+        }
+    }
+}
+
+/// The evidence bar — proportion of today's kcal by source colour.
+struct EvidenceBar: View {
+    let verifiedKcal: Double
+    let databaseKcal: Double
+    let estimateKcal: Double
+    let otherKcal: Double
+
+    private var total: Double { verifiedKcal + databaseKcal + estimateKcal + otherKcal }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("TODAY'S EVIDENCE")
+                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
+                .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    segment(verifiedKcal, ScranColor.verified, geo.size.width)
+                    segment(databaseKcal, ScranColor.database, geo.size.width)
+                    segment(estimateKcal, ScranColor.estimate, geo.size.width)
+                    segment(otherKcal, ScranColor.textMuted, geo.size.width)
+                }
+            }
+            .frame(height: 8)
+            .clipShape(Capsule())
+            .background(Capsule().fill(ScranColor.lineStrong))
+            HStack(spacing: 14) {
+                legend("Verified", ScranColor.verified, verifiedKcal)
+                legend("Database", ScranColor.database, databaseKcal)
+                legend("Estimate", ScranColor.estimate, estimateKcal)
+            }
+        }
+    }
+
+    private func segment(_ value: Double, _ color: Color, _ width: CGFloat) -> some View {
+        Rectangle().fill(color)
+            .frame(width: total > 0 ? width * (value / total) : 0)
+    }
+
+    private func legend(_ name: String, _ color: Color, _ value: Double) -> some View {
+        let pct = total > 0 ? Int((value / total * 100).rounded()) : 0
+        return HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text("\(name) \(pct)%")
+                .font(ScranFont.mono(11, relativeTo: .caption2))
+                .foregroundStyle(ScranColor.textMuted)
+        }
+    }
+}
