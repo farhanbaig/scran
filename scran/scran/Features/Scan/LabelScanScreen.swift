@@ -18,6 +18,7 @@ struct LabelScanScreen: View {
     private enum Stage: Equatable { case capturing, processing, error(String) }
     @State private var stage: Stage = .capturing
     @State private var captured: UIImage? = nil
+    @State private var scanTask: Task<Void, Never>? = nil
 
     var body: some View {
         Group {
@@ -33,7 +34,8 @@ struct LabelScanScreen: View {
 
             case .processing:
                 ScanProgressView(accent: ScranColor.verified, message: "Reading the label…",
-                                 image: captured)
+                                 image: captured,
+                                 cancel: { scanTask?.cancel(); stage = .capturing })
 
             case .error(let msg):
                 ScanErrorView(
@@ -44,6 +46,7 @@ struct LabelScanScreen: View {
                     cancel: { coordinator.cancel() })
             }
         }
+        .animation(.snappy(duration: 0.25), value: stage)
         .scranScreen()
     }
 
@@ -54,12 +57,14 @@ struct LabelScanScreen: View {
             stage = .error("That photo didn't encode properly. Try again.")
             return
         }
-        Task {
+        scanTask = Task {
             do {
                 let result = try await ScanService.scanLabel(imageBase64: base64)
+                guard !Task.isCancelled else { return }
                 app.quota.noteScanUsed(remainingFromServer: result.scansRemaining)
                 switch result.status {
                 case .ok:
+                    Haptics.success()
                     app.analytics.track(.labelScan(ok: true, confidence: result.readConfidence))
                     let draft = EntryDraft.fromLabel(result)
                     draft.photo = image
@@ -76,6 +81,8 @@ struct LabelScanScreen: View {
                 app.presentPaywall(trigger: "quota")
                 coordinator.cancel()
             } catch {
+                // User backed out — no error screen for a cancelled scan.
+                if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
                 app.crash.capture(error, context: ["fn": "scan-label"])
                 Haptics.error()
                 stage = .error(app.isOnline

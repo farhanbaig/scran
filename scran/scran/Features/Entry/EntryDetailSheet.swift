@@ -18,6 +18,17 @@ struct EntryDetailSheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                #if canImport(UIKit)
+                if let photo = PhotoStore.image(atRelativePath: entry.photoLocalPath) {
+                    Image(uiImage: photo)
+                        .resizable().scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ScranColor.line))
+                        .accessibilityLabel("Photo of \(entry.name)")
+                }
+                #endif
                 HStack {
                     SourceBadge(source: entry.sourceEnum, confidence: entry.confidence)
                     Spacer()
@@ -110,7 +121,7 @@ struct EntryDetailSheet: View {
         entry.deletedAt = .now
         entry.syncState = SyncState.pending.rawValue
         try? context.save()
-        Haptics.selection()
+        Haptics.warning()
         let ctx = context
         Task { await app.sync.syncPending(context: ctx) }
         dismiss()

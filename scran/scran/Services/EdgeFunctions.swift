@@ -95,8 +95,13 @@ enum ScanService {
         return r
     }
 
-    static func scanPlate(imageBase64: String) async throws -> PlateScanResult {
-        let data = try await client.invokeFunction("scan-plate", body: ["imageBase64": imageBase64])
+    /// Plate estimation. `correction` re-runs the estimate with user-supplied
+    /// ground truth ("that's mutton, not pork") — the server treats it as a
+    /// refinement and does not consume another daily scan.
+    static func scanPlate(imageBase64: String, correction: String? = nil) async throws -> PlateScanResult {
+        var body: [String: Any] = ["imageBase64": imageBase64]
+        if let correction { body["correction"] = correction }
+        let data = try await client.invokeFunction("scan-plate", body: body)
         guard let r = try? decoder.decode(PlateScanResult.self, from: data) else {
             throw SupabaseError.decoding
         }

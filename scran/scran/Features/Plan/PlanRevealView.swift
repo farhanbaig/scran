@@ -17,6 +17,7 @@ struct PlanRevealView: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
+    @Environment(ChromeVisibility.self) private var chrome: ChromeVisibility?
     @State private var explanation: String? = nil
     @State private var loadingExplanation = true
 
@@ -44,11 +45,13 @@ struct PlanRevealView: View {
         )
         .safeAreaInset(edge: .bottom) {
             PrimaryButton(title: primaryTitle, systemImage: "arrow.right") { onPrimary() }
-                .padding(20).background(.ultraThinMaterial)
+                .padding(20).scranBottomBar()
         }
         .navigationTitle("Your plan")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadExplanation() }
+        .onAppear { chrome?.tabBarHidden = true }
+        .onDisappear { chrome?.tabBarHidden = false }
     }
 
     // MARK: - Hero

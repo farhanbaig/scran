@@ -14,15 +14,18 @@ struct TodayView: View {
     @Environment(\.modelContext) private var context
     @Environment(AppModel.self) private var app
 
+    /// Opens the Log sheet (owned by the tab container).
+    var onLog: () -> Void = {}
+
     @Query private var plans: [UserPlan]
     @Query private var entries: [FoodEntry]
 
-    @State private var showLogSheet = false
-    @State private var activeFlow: LogFlowKind? = nil
     @State private var editingEntry: FoodEntry? = nil
-    @State private var showSettings = false
+    @State private var health = HealthKitService.shared
+    @AppStorage("scran.healthConnected") private var healthConnected = false
 
-    init() {
+    init(onLog: @escaping () -> Void = {}) {
+        self.onLog = onLog
         let start = Calendar.current.startOfDay(for: .now)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
         _entries = Query(
@@ -36,45 +39,83 @@ struct TodayView: View {
     private var plan: UserPlan? { plans.first }
     private var consumed: NutrientBlock { entries.reduce(NutrientBlock.zero) { $0 + $1.total } }
 
+    /// "Wednesday 11 June · 1,460 kcal left · 2 AI scans left today"
+    private var headerSubtitle: String {
+        var parts = [Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide))]
+        if let plan {
+            let left = plan.dailyTargetKcal - consumed.kcal
+            parts.append(left >= 0
+                ? "\(ScranFormat.int(left)) kcal left"
+                : "\(ScranFormat.int(-left)) kcal over")
+        }
+        if let counter = app.quota.counterText { parts.append(counter) }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ScranHeader(title: "Today", subtitle: headerSubtitle)
+                        logButton
+                    }
                     if let plan {
                         ringCard(plan)
                         EvidenceBarCard(entries: entries)
+                        if healthConnected, let snap = health.latest, snap.hasActivity {
+                            HealthTodayCard(snapshot: snap)
+                        }
                         if entries.isEmpty { emptyState } else { entryList }
                     } else {
                         ProgressView().tint(ScranColor.verified).padding(.top, 80)
                     }
                 }
                 .padding(20)
-                .padding(.bottom, 96)
+                .padding(.bottom, ScranTabBar.contentHeight + 16)
             }
             .scranScreen()
-            .navigationTitle("Today")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape").foregroundStyle(ScranColor.textPrimary)
-                    }
-                }
-            }
-            .overlay(alignment: .bottomTrailing) { fab }
-            .navigationDestination(isPresented: $showSettings) { SettingsView() }
+            .toolbar(.hidden, for: .navigationBar)
+            .task { await health.refreshIfConnected() }
         }
         .tint(ScranColor.verified)
-        .sheet(isPresented: $showLogSheet) {
-            LogSheet { kind in activeFlow = kind }
-                .environment(app)
-        }
-        .fullScreenCover(item: $activeFlow) { kind in
-            LogFlowView(kind: kind) { activeFlow = nil }
-                .environment(app)
-        }
         .sheet(item: $editingEntry) { entry in
             NavigationStack { EntryDetailSheet(entry: entry) }
                 .environment(app)
+        }
+    }
+
+    // MARK: - Header log button
+
+    /// Prominent primary CTA for logging, anchored at the top of Today. Shows a
+    /// low-quota badge so the free-tier budget is visible before tapping.
+    private var logButton: some View {
+        Button { onLog() } label: {
+            ZStack {
+                Circle().fill(ScranColor.verified)
+                    .frame(width: 50, height: 50)
+                    .shadow(color: ScranColor.verified.opacity(0.4), radius: 10, y: 3)
+                Image(systemName: "plus")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(ScranColor.onVerified)
+            }
+            .overlay(alignment: .topTrailing) { quotaBadge }
+        }
+        .buttonStyle(PressableStyle(scale: 0.9))
+        .accessibilityLabel("Log food")
+        .accessibilityHint(app.quota.counterText ?? "")
+    }
+
+    @ViewBuilder private var quotaBadge: some View {
+        if let r = app.quota.remaining, r <= 2 {
+            Text("\(r)")
+                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
+                .foregroundStyle(r == 0 ? ScranColor.bg : ScranColor.onVerified)
+                .frame(width: 19, height: 19)
+                .background(Circle().fill(r == 0 ? ScranColor.error : ScranColor.estimate))
+                .overlay(Circle().strokeBorder(ScranColor.bg, lineWidth: 2))
+                .offset(x: 3, y: -3)
+                .accessibilityHidden(true)
         }
     }
 
@@ -162,28 +203,11 @@ struct TodayView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
     }
 
-    // MARK: - FAB
-
-    private var fab: some View {
-        Button { Haptics.tap(); showLogSheet = true } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(ScranColor.onVerified)
-                .frame(width: 62, height: 62)
-                .background(Circle().fill(ScranColor.verified))
-                .shadow(color: ScranColor.verified.opacity(0.5), radius: 16, y: 6)
-        }
-        .buttonStyle(PressableStyle(scale: 0.92))
-        .padding(.trailing, 22)
-        .padding(.bottom, 22)
-        .accessibilityLabel("Log food")
-    }
-
     private func delete(_ entry: FoodEntry) {
         entry.deletedAt = .now
         entry.syncState = SyncState.pending.rawValue
         try? context.save()
-        Haptics.selection()
+        Haptics.warning()
         let ctx = context
         Task { await app.sync.syncPending(context: ctx) }
     }
@@ -211,6 +235,16 @@ struct EntryRow: View {
     let entry: FoodEntry
     var body: some View {
         HStack(spacing: 12) {
+            #if canImport(UIKit)
+            if let photo = PhotoStore.image(atRelativePath: entry.photoLocalPath) {
+                Image(uiImage: photo)
+                    .resizable().scaledToFill()
+                    .frame(width: 46, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.line))
+                    .accessibilityHidden(true)
+            }
+            #endif
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.name)
                     .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))

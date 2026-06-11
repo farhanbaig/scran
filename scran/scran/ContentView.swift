@@ -21,7 +21,7 @@ struct RootView: View {
             if plans.isEmpty {
                 OnboardingFlow()
             } else {
-                TodayView()
+                MainTabView()
             }
         }
         .task { await app.bootstrap(context: context) }
@@ -37,7 +37,7 @@ struct RootView: View {
                 PaywallView(trigger: trigger)
                     .environment(app)
                     .presentationDetents([.large])
-                    .preferredColorScheme(.dark)
+                    .scranAppearance()
             }
         }
     }

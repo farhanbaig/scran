@@ -43,7 +43,7 @@ struct CalorieRing: View {
         }
         .frame(width: 196, height: 196)
         .accessibilityElement()
-        .accessibilityLabel("\(ScranFormat.int(abs(remaining))) kilocalories \(over ? "over" : "left"), \(ScranFormat.int(consumed)) of \(ScranFormat.int(target)) eaten")
+        .accessibilityLabel("\(ScranFormat.int(abs(remaining))) kilocalories \(over ? "over" : "left"), \(ScranFormat.int(consumed)) of \(ScranFormat.int(target)) eaten, \(Int((progress * 100).rounded())) percent of daily target")
     }
 }
 
@@ -60,10 +60,12 @@ struct MacroBar: View {
             HStack {
                 Text(label).font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
                     .foregroundStyle(ScranColor.textMuted)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                 Spacer()
                 Text("\(ScranFormat.int(consumed))/\(ScranFormat.int(target))g")
                     .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
                     .foregroundStyle(ScranColor.textPrimary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -73,6 +75,8 @@ struct MacroBar: View {
             }
             .frame(height: 6)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(ScranFormat.int(consumed)) of \(ScranFormat.int(target)) grams")
     }
 }
 
@@ -107,6 +111,14 @@ struct EvidenceBar: View {
                 legend("Estimate", ScranColor.estimate, estimateKcal)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(evidenceSummary)
+    }
+
+    private var evidenceSummary: String {
+        guard total > 0 else { return "Today's evidence: nothing logged yet" }
+        let pct = { (v: Double) in Int((v / total * 100).rounded()) }
+        return "Today's evidence: \(pct(verifiedKcal)) percent verified, \(pct(databaseKcal)) percent database, \(pct(estimateKcal)) percent estimate"
     }
 
     private func segment(_ value: Double, _ color: Color, _ width: CGFloat) -> some View {

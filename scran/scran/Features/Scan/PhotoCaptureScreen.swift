@@ -50,13 +50,14 @@ struct PhotoCaptureScreen: View {
         VStack {
             // Top bar
             HStack {
-                Button { onCancel() } label: {
+                Button { Haptics.tap(); onCancel() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(ScranColor.textPrimary)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(.black.opacity(0.45)))
                 }
+                .accessibilityLabel("Close camera")
                 Spacer()
                 Button {
                     torchOn.toggle(); controller.setTorch(torchOn); Haptics.selection()
@@ -64,9 +65,10 @@ struct PhotoCaptureScreen: View {
                     Image(systemName: torchOn ? "bolt.fill" : "bolt.slash")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(torchOn ? accent : ScranColor.textPrimary)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(.black.opacity(0.45)))
                 }
+                .accessibilityLabel(torchOn ? "Turn off flashlight" : "Turn on flashlight")
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -114,6 +116,7 @@ struct PhotoCaptureScreen: View {
         VStack(spacing: 20) {
             Image(systemName: "camera.fill")
                 .font(.system(size: 40)).foregroundStyle(ScranColor.textMuted)
+                .accessibilityHidden(true)
             Text("Camera access needed")
                 .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)

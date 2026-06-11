@@ -55,18 +55,20 @@ struct BarcodeScanScreen: View {
 
     private var topBar: some View {
         HStack {
-            Button { coordinator.cancel() } label: {
+            Button { Haptics.tap(); coordinator.cancel() } label: {
                 Image(systemName: "xmark").font(.system(size: 16, weight: .bold))
                     .foregroundStyle(ScranColor.textPrimary)
-                    .frame(width: 40, height: 40).background(Circle().fill(.black.opacity(0.45)))
+                    .frame(width: 44, height: 44).background(Circle().fill(.black.opacity(0.45)))
             }
+            .accessibilityLabel("Close scanner")
             Spacer()
             Button { torchOn.toggle(); Haptics.selection() } label: {
                 Image(systemName: torchOn ? "bolt.fill" : "bolt.slash")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(torchOn ? ScranColor.database : ScranColor.textPrimary)
-                    .frame(width: 40, height: 40).background(Circle().fill(.black.opacity(0.45)))
+                    .frame(width: 44, height: 44).background(Circle().fill(.black.opacity(0.45)))
             }
+            .accessibilityLabel(torchOn ? "Turn off flashlight" : "Turn on flashlight")
         }
     }
 
@@ -108,6 +110,7 @@ struct BarcodeScanScreen: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(ScranColor.error)
+                        .accessibilityHidden(true)
                     Text("Couldn't check the database")
                         .font(ScranFont.body(18, weight: .bold, relativeTo: .headline))
                         .foregroundStyle(ScranColor.textPrimary)
@@ -131,6 +134,7 @@ struct BarcodeScanScreen: View {
         VStack(spacing: 16) {
             Image(systemName: "barcode.viewfinder").font(.system(size: 40))
                 .foregroundStyle(ScranColor.textMuted)
+                .accessibilityHidden(true)
             Text("Barcode scanning needs a device camera.")
                 .font(ScranFont.body(15, relativeTo: .body))
                 .foregroundStyle(ScranColor.textMuted).multilineTextAlignment(.center)

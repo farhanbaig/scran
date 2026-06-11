@@ -49,7 +49,10 @@ actor SupabaseClient {
 
     init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 20
+        // Vision Edge Functions (label/plate) can legitimately take a while;
+        // allow headroom so a slow scan never trips a client-side timeout.
+        config.timeoutIntervalForRequest = 45
+        config.timeoutIntervalForResource = 60
         config.waitsForConnectivity = false
         self.session = URLSession(configuration: config)
     }

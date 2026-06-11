@@ -18,8 +18,16 @@ struct PlateScanScreen: View {
     private enum Stage: Equatable { case capturing, processing, result, error(String) }
     @State private var stage: Stage = .capturing
     @State private var captured: UIImage? = nil
+    @State private var imageBase64: String? = nil
     @State private var result: PlateScanResult? = nil
     @State private var clarified: Bool? = nil   // nil = unanswered
+    @State private var scanTask: Task<Void, Never>? = nil
+
+    // User corrections ("that's mutton, not pork") — sent back with the photo
+    // for a server-side re-estimate; kept for the entry's clarification trail.
+    @State private var appliedCorrections: [String] = []
+    @State private var showCorrectionSheet = false
+    @State private var correctionText = ""
 
     var body: some View {
         Group {
@@ -32,8 +40,12 @@ struct PlateScanScreen: View {
                     onCapture: { process($0) },
                     onCancel: { coordinator.cancel() })
             case .processing:
-                ScanProgressView(accent: ScranColor.estimate, message: "Estimating the plate…",
-                                 image: captured)
+                ScanProgressView(accent: ScranColor.estimate,
+                                 message: appliedCorrections.isEmpty
+                                     ? "Estimating the plate…"
+                                     : "Recalculating with your correction…",
+                                 image: captured,
+                                 cancel: { scanTask?.cancel(); stage = .capturing })
             case .result:
                 if let result { resultView(result) }
             case .error(let msg):
@@ -42,7 +54,9 @@ struct PlateScanScreen: View {
                               cancel: { coordinator.cancel() })
             }
         }
+        .animation(.snappy(duration: 0.25), value: stage)
         .scranScreen()
+        .sheet(isPresented: $showCorrectionSheet) { correctionSheet }
     }
 
     // MARK: - Result
@@ -51,7 +65,7 @@ struct PlateScanScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    SourceBadge(source: .estimate, confidence: adjustedConfidence(r))
+                    SourceBadge(source: .estimate, confidence: r.overallConfidence)
                     Spacer()
                 }
                 Text("Honest estimate")
@@ -71,6 +85,8 @@ struct PlateScanScreen: View {
                 ForEach(r.items) { item in
                     itemRow(item)
                 }
+
+                correctionCard
             }
             .padding(20).padding(.bottom, 100)
         }
@@ -79,13 +95,13 @@ struct PlateScanScreen: View {
                 let draft = combinedDraft(r)
                 coordinator.showEditor(draft)
             }
-            .padding(20).background(.ultraThinMaterial)
+            .padding(20).scranBottomBar()
         }
     }
 
     private func bandCard(_ r: PlateScanResult) -> some View {
         let total = r.items.reduce(0) { $0 + $1.per100g.kcal * $1.estimatedGrams / 100 }
-        let conf = adjustedConfidence(r)
+        let conf = r.overallConfidence
         let spread = total * (1 - conf) * 0.6
         let low = max(0, total - spread), high = total + spread
         return ScranCard(background: ScranColor.panel2) {
@@ -113,8 +129,8 @@ struct PlateScanScreen: View {
                         .foregroundStyle(ScranColor.estimate)
                 }
                 HStack(spacing: 10) {
-                    chipButton("Yes", selected: clarified == true) { clarified = true; Haptics.selection() }
-                    chipButton("No", selected: clarified == false) { clarified = false; Haptics.selection() }
+                    chipButton("Yes", selected: clarified == true) { answerClarification(question, true) }
+                    chipButton("No", selected: clarified == false) { answerClarification(question, false) }
                 }
             }
         }
@@ -130,6 +146,69 @@ struct PlateScanScreen: View {
                 .overlay(Capsule().strokeBorder(ScranColor.estimate.opacity(0.5), lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
+    }
+
+    /// "Not quite right?" — wrong name, wrong portion, or something missing all
+    /// route through one free-text correction that triggers a re-estimate.
+    private var correctionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Not quite right?")
+                .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                .foregroundStyle(ScranColor.textPrimary)
+            Text("Tell us what's wrong or missing and we'll recalculate — it won't use another scan.")
+                .font(ScranFont.body(13, relativeTo: .footnote))
+                .foregroundStyle(ScranColor.textMuted)
+            SecondaryButton(title: "Correct & recalculate", systemImage: "arrow.triangle.2.circlepath") {
+                correctionText = ""
+                showCorrectionSheet = true
+            }
+            if !appliedCorrections.isEmpty {
+                ForEach(appliedCorrections, id: \.self) { c in
+                    Text("// applied: \(c)")
+                        .font(ScranFont.mono(12, relativeTo: .caption))
+                        .foregroundStyle(ScranColor.estimate)
+                }
+            }
+        }
+        .padding(.top, 6)
+    }
+
+    private var correctionSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("What did we get wrong or miss?")
+                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textPrimary)
+                TextField("e.g. That's mutton, not pork — and there's a chapati too",
+                          text: $correctionText, axis: .vertical)
+                    .lineLimit(2...4)
+                    .font(ScranFont.body(15, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                Spacer()
+                PrimaryButton(title: "Recalculate", systemImage: "arrow.triangle.2.circlepath",
+                              enabled: !correctionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                    let text = correctionText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    appliedCorrections.append(text)
+                    showCorrectionSheet = false
+                    rescan()
+                }
+            }
+            .padding(20)
+            .scranScreen()
+            .navigationTitle("Correct the estimate")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { showCorrectionSheet = false }
+                        .foregroundStyle(ScranColor.textMuted)
+                }
+            }
+        }
+        .presentationDetents([.height(300)])
+        .scranAppearance()
     }
 
     private func itemRow(_ item: PlateScanResult.Item) -> some View {
@@ -153,11 +232,14 @@ struct PlateScanScreen: View {
 
     // MARK: - Logic
 
-    /// Answering "yes" to an oil/sugar question nudges confidence up (we now know).
-    private func adjustedConfidence(_ r: PlateScanResult) -> Double {
-        guard r.clarifyingQuestion != nil, let answered = clarified else { return r.overallConfidence }
-        _ = answered
-        return min(0.95, r.overallConfidence + 0.1)
+    /// Answering the clarifying chip feeds the answer back through the same
+    /// re-estimate pipeline as corrections, so the NUMBERS update — not just a
+    /// cosmetic confidence bump.
+    private func answerClarification(_ question: String, _ answer: Bool) {
+        clarified = answer
+        Haptics.selection()
+        appliedCorrections.append("Answering your question \"\(question)\": \(answer ? "yes" : "no")")
+        rescan()
     }
 
     private func combinedDraft(_ r: PlateScanResult) -> EntryDraft {
@@ -166,33 +248,71 @@ struct PlateScanScreen: View {
         var totalBlock = NutrientBlock.zero
         for item in r.items { totalBlock = totalBlock + item.per100g.scaled(toGrams: item.estimatedGrams) }
         let per100g = totalGrams > 0 ? totalBlock.scaled(toGrams: 100 * 100 / totalGrams) : totalBlock
-        var clar: [String] = []
-        if let q = r.clarifyingQuestion, let a = clarified {
-            clar.append("\(q) \(a ? "yes" : "no")")
-        }
+        let clar = appliedCorrections.map { "Correction: \($0)" }
         let name = r.items.count == 1 ? r.items[0].name
             : r.items.prefix(2).map(\.name).joined(separator: " + ") + (r.items.count > 2 ? " +" : "")
-        let draft = EntryDraft(name: name, source: .estimate, confidence: adjustedConfidence(r),
+        let draft = EntryDraft(name: name, source: .estimate, confidence: r.overallConfidence,
                                per100g: per100g, servingSizeG: totalGrams, quantity: 1,
                                clarifications: clar)
         draft.photo = captured
         return draft
     }
 
+    /// Honest, actionable copy per failure mode — never a bare "something went wrong".
+    private static func scanErrorMessage(_ error: Error, isOnline: Bool) -> String {
+        guard isOnline else { return "You're offline — plate scanning needs a connection." }
+        if case SupabaseError.http(let status, _) = error {
+            switch status {
+            case 429: return "Scanning is busy right now. Give it a few seconds and try again."
+            case 500...599: return "The scan service hit a snag. Your photo is fine — try again."
+            default: break
+            }
+        }
+        if (error as? URLError)?.code == .timedOut {
+            return "That scan took too long. Check your signal and try again."
+        }
+        return "Something went wrong. Try again."
+    }
+
     private func process(_ image: UIImage) {
         captured = image
+        appliedCorrections = []
         stage = .processing
         guard let base64 = ImageCompressor.base64(from: image) else {
             stage = .error("That photo didn't encode properly. Try again."); return
         }
-        Task {
+        imageBase64 = base64
+        runScan(correction: nil)
+    }
+
+    /// Re-estimate the SAME photo with the user's corrections as ground truth.
+    /// Refinements don't consume a daily scan (server-enforced).
+    private func rescan() {
+        guard imageBase64 != nil else { return }
+        clarified = nil   // the clarifying question may change after a correction
+        stage = .processing
+        runScan(correction: appliedCorrections.joined(separator: "; "))
+    }
+
+    private func runScan(correction: String?) {
+        guard let base64 = imageBase64 else { return }
+        let isRefinement = correction != nil
+        scanTask = Task {
             do {
-                let r = try await ScanService.scanPlate(imageBase64: base64)
+                let r = try await ScanService.scanPlate(imageBase64: base64, correction: correction)
+                guard !Task.isCancelled else { return }
                 app.quota.noteScanUsed(remainingFromServer: r.scansRemaining)
                 if r.status == .no_food || r.items.isEmpty {
                     Haptics.warning()
-                    stage = .error("No food spotted. Frame the whole plate from above and try again.")
+                    if isRefinement, result != nil {
+                        // Empty re-estimate: keep the previous valid result.
+                        appliedCorrections.removeLast()
+                        stage = .result
+                    } else {
+                        stage = .error("No food spotted. Frame the whole plate from above and try again.")
+                    }
                 } else {
+                    Haptics.success()
                     app.analytics.track(.plateScan(confidence: r.overallConfidence,
                                                    clarified: r.clarifyingQuestion != nil))
                     result = r
@@ -201,11 +321,18 @@ struct PlateScanScreen: View {
             } catch SupabaseError.quotaExceeded(_, _) {
                 app.presentPaywall(trigger: "quota"); coordinator.cancel()
             } catch {
+                // User backed out — no error screen for a cancelled scan.
+                if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
                 app.crash.capture(error, context: ["fn": "scan-plate"])
                 Haptics.error()
-                stage = .error(app.isOnline
-                    ? "Something went wrong. Try again."
-                    : "You're offline — plate scanning needs a connection.")
+                if isRefinement, result != nil {
+                    // Keep the previous (still valid) estimate rather than
+                    // stranding the user on an error screen.
+                    appliedCorrections.removeLast()
+                    stage = .result
+                } else {
+                    stage = .error(Self.scanErrorMessage(error, isOnline: app.isOnline))
+                }
             }
         }
     }

@@ -43,13 +43,14 @@ struct BarcodeScannerRepresentable: UIViewControllerRepresentable {
 
     private func setTorch(_ on: Bool) {
         guard let device = AVCaptureDevice.default(for: .video), device.hasTorch else { return }
-        try? device.lockForConfiguration()
+        guard (try? device.lockForConfiguration()) != nil else { return }
+        defer { device.unlockForConfiguration() }
+        
         if on {
             try? device.setTorchModeOn(level: 1.0)
         } else {
             device.torchMode = .off
         }
-        device.unlockForConfiguration()
     }
 
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {

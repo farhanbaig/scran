@@ -113,7 +113,7 @@ struct SavedMealsView: View {
             meal.syncState = SyncState.pending.rawValue
         }
         try? context.save()
-        Haptics.selection()
+        Haptics.warning()
         let ctx = context
         Task { await app.sync.syncPending(context: ctx) }
     }

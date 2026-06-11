@@ -19,17 +19,26 @@ struct SettingsView: View {
     @Query(sort: [SortDescriptor(\UserPlan.createdAt, order: .reverse)]) private var plans: [UserPlan]
 
     @State private var diagnosticId = "—"
-    @State private var exportURL: URL? = nil
-    @State private var showExport = false
+    @State private var exportFile: ExportFile? = nil
     @State private var confirmDelete = false
     @State private var deleting = false
+    @AppStorage(ScranAppearance.storageKey) private var appearanceRaw = ScranAppearance.system.rawValue
+    @AppStorage("scran.healthConnected") private var healthConnected = false
+    @State private var connectingHealth = false
+    @State private var healthSummary: String? = nil
+    @State private var health = HealthKitService.shared
 
     private var plan: UserPlan? { plans.first }
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
+                ScranHeader(title: "Settings",
+                            subtitle: "Your plan, your data, your account")
+                    .padding(.bottom, 4)
                 if let plan { planSection(plan) }
+                if HealthKitService.isSupported { healthSection }
+                appearanceSection
                 subscriptionSection
                 dataSection
                 supportSection
@@ -38,14 +47,16 @@ struct SettingsView: View {
                 footer
             }
             .padding(20)
+            .padding(.bottom, ScranTabBar.contentHeight + 16)
         }
         .scranScreen()
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .task { diagnosticId = (await SupabaseClient.shared.userId) ?? "—" }
         #if canImport(UIKit)
-        .sheet(isPresented: $showExport) {
-            if let exportURL { ShareSheet(items: [exportURL]) }
+        // .sheet(item:) so the share sheet only presents once the file URL is
+        // ready — .sheet(isPresented:) raced and showed blank on first tap.
+        .sheet(item: $exportFile) { file in
+            ShareSheet(items: [file.url])
         }
         #endif
         .alert("Delete account?", isPresented: $confirmDelete) {
@@ -79,6 +90,84 @@ struct SettingsView: View {
                     PlanEditView(plan: plan)
                 } label: { rowButtonLabel("Edit plan", "slider.horizontal.3") }
             }
+        }
+    }
+
+    // MARK: - Apple Health
+
+    private var healthSection: some View {
+        SettingsCard(title: "Apple Health") {
+            if healthConnected, let snap = health.latest, snap.hasActivity {
+                HealthStatGrid(snapshot: snap)
+            }
+            settingsButton(
+                connectingHealth ? "Reading from Apple Health…"
+                                 : (healthConnected ? "Refresh from Apple Health" : "Connect Apple Health"),
+                healthConnected ? "arrow.clockwise" : "heart.fill") {
+                    guard !connectingHealth else { return }
+                    Task { await connectHealth() }
+                }
+            .disabled(connectingHealth)
+            if let healthSummary {
+                Text(healthSummary)
+                    .font(ScranFont.body(13, relativeTo: .footnote))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text("// read-only — we import your weigh-ins and show steps, energy, exercise & sleep for context; movement is never added back to your budget")
+                .font(ScranFont.mono(11, relativeTo: .caption2)).foregroundStyle(ScranColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .task { if healthConnected { await health.refreshIfConnected() } }
+    }
+
+    private func connectHealth() async {
+        connectingHealth = true
+        defer { connectingHealth = false }
+        guard await HealthKitService.shared.requestAuthorization() else {
+            healthSummary = "Couldn't connect to Apple Health."
+            return
+        }
+        healthConnected = true
+        let snap = await HealthKitService.shared.snapshot()
+
+        // Import weigh-ins we don't already have (one per day).
+        let cal = Calendar.current
+        let existing = (try? context.fetch(FetchDescriptor<WeightEntry>())) ?? []
+        var days = Set(existing.filter { $0.deletedAt == nil }.map { cal.startOfDay(for: $0.date) })
+        var imported = 0
+        for w in snap.weightHistory {
+            let day = cal.startOfDay(for: w.date)
+            if days.contains(day) { continue }
+            days.insert(day)
+            context.insert(WeightEntry(date: day, weightKg: w.kg))
+            imported += 1
+        }
+        if imported > 0 {
+            try? context.save()
+            let ctx = context
+            Task { await app.sync.syncPending(context: ctx) }
+        }
+
+        var line = imported > 0 ? "Imported \(imported) weigh-in\(imported == 1 ? "" : "s") from Health."
+                                : "Connected — no new weigh-ins to import."
+        var activity: [String] = []
+        if let e = snap.activeEnergyKcal, e >= 1 { activity.append("\(Int(e)) kcal active") }
+        if let s = snap.steps, s >= 1 { activity.append("\(Int(s)) steps") }
+        if let x = snap.exerciseMinutes, x >= 1 { activity.append("\(Int(x)) min exercise") }
+        if !activity.isEmpty { line += " Today: " + activity.joined(separator: " · ") + "." }
+        healthSummary = line
+    }
+
+    // MARK: - Appearance
+
+    private var appearanceSection: some View {
+        SettingsCard(title: "Appearance") {
+            ScranSegmented(
+                options: ScranAppearance.allCases.map { ($0.rawValue, $0.label) },
+                selection: $appearanceRaw)
+            Text("// system follows your device's light/dark setting")
+                .font(ScranFont.mono(11, relativeTo: .caption2)).foregroundStyle(ScranColor.textMuted)
         }
     }
 
@@ -203,9 +292,9 @@ struct SettingsView: View {
 
     private func exportCSV() {
         do {
-            exportURL = try DataExport.exportCSV(context: context)
+            let url = try DataExport.exportCSV(context: context)
             app.analytics.track(.exportCSV)
-            showExport = true
+            exportFile = ExportFile(url: url)
         } catch {
             app.crash.capture(error, context: ["action": "export_csv"])
         }
@@ -258,6 +347,12 @@ extension Bundle {
     var appVersion: String {
         (infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0"
     }
+}
+
+/// Identifiable wrapper so the share sheet presents via `.sheet(item:)`.
+struct ExportFile: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 #if canImport(UIKit)

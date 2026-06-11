@@ -106,6 +106,29 @@ struct SecondaryButton: View {
     }
 }
 
+// MARK: - Screen header (replaces system large titles, brand-set)
+
+struct ScranHeader: View {
+    let title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
+                .foregroundStyle(ScranColor.textPrimary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(ScranFont.body(14, relativeTo: .footnote))
+                    .foregroundStyle(ScranColor.textMuted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
 // MARK: - Segmented control
 
 struct ScranSegmented<T: Hashable>: View {
@@ -179,8 +202,11 @@ struct ScranStepper: View {
                 .foregroundStyle(ScranColor.textPrimary)
                 .background(Circle().fill(ScranColor.panel2))
                 .overlay(Circle().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
+                .padding(5)  // 44pt hit target (HIG minimum); circle stays 34pt
+                .contentShape(Circle())
         }
         .buttonStyle(PressableStyle(scale: 0.9))
+        .accessibilityLabel("\(systemName == "minus" ? "Decrease" : "Increase") \(label)")
     }
 }
 
@@ -269,5 +295,15 @@ extension View {
     /// Wraps a view in the standard dark background.
     func scranScreen() -> some View {
         self.background(ScranColor.bg.ignoresSafeArea())
+    }
+
+    /// Background for a pinned bottom action bar — matches the screen exactly
+    /// (no translucent material band) with a hairline top edge.
+    func scranBottomBar() -> some View {
+        self.background(
+            ScranColor.bg
+                .overlay(alignment: .top) { Rectangle().fill(ScranColor.line).frame(height: 1) }
+                .ignoresSafeArea()
+        )
     }
 }

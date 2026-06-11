@@ -3,8 +3,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { z } from "npm:zod@3.23.8";
 import {
-  callGeminiJSON, cleanBase64, corsHeaders, FREE_DAILY_SCANS, getUser, isPro,
-  json, newRequestId, rateLimited, recordScan, scansUsedToday, serviceClient,
+  callGeminiJSON, cleanBase64, corsHeaders, extractJSON, FREE_DAILY_SCANS,
+  GEMINI_DEFAULT_MODEL, getUser, isPro, json, newRequestId, rateLimited,
+  recordScan, scansUsedToday, serviceClient,
 } from "../_shared/mod.ts";
 
 const Per100g = z.object({
@@ -54,8 +55,8 @@ Deno.serve(async (req) => {
       return json({ status: "unreadable", code: "SCAN_UNREADABLE", rid }, 200);
     }
     const model = pro
-      ? (Deno.env.get("GEMINI_MODEL_PRO") ?? "gemini-flash-latest")
-      : (Deno.env.get("GEMINI_MODEL") ?? "gemini-flash-latest");
+      ? (Deno.env.get("GEMINI_MODEL_PRO") ?? GEMINI_DEFAULT_MODEL)
+      : (Deno.env.get("GEMINI_MODEL") ?? GEMINI_DEFAULT_MODEL);
 
     let raw: string;
     try {
@@ -64,8 +65,8 @@ Deno.serve(async (req) => {
       console.error(rid, "gemini_error", String(e));
       return json({ status: "unreadable", code: "SCAN_UNREADABLE", rid }, 200);
     }
-    let parsed: unknown;
-    try { parsed = JSON.parse(raw); } catch {
+    const parsed = extractJSON(raw);
+    if (!parsed || typeof parsed !== "object") {
       return json({ status: "unreadable", code: "SCAN_UNREADABLE", rid }, 200);
     }
     const result = LabelResult.safeParse(parsed);

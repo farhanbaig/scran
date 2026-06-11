@@ -2,45 +2,26 @@
 //  OnboardingFlow.swift
 //  scran
 //
-//  Screen 1. Four steps, one question per screen: about you → activity →
-//  goal + rate → Plan Reveal. Nothing is persisted until "Start logging".
+//  Data-driven onboarding funnel. The order lives in `steps` — reorder or
+//  A/B-test by editing that array, not the views. Full honest-momentum flow
+//  ending at the Plan Reveal payoff. No account wall (anonymous auth), no fake
+//  loaders, no pre-checked opt-ins.
 //
 
 import SwiftUI
 import SwiftData
-import Observation
 
-@MainActor
-@Observable
-final class OnboardingDraft {
-    var sex: BiologicalSex = .male
-    var dateOfBirth: Date = Calendar.current.date(byAdding: .year, value: -30, to: .now) ?? .now
-    var heightCm: Double = 175
-    var weightKg: Double = 80
-    var activity: ActivityLevel = .moderate
-    var weeklyWorkouts: Int = 3
-    var goal: Goal = .lose
-    var weeklyRateKg: Double = 0.5
-    var targetWeightKg: Double = 75
-
-    var input: PlanInput {
-        PlanInput(heightCm: heightCm, weightKg: weightKg,
-                  age: PlanCalculator.age(from: dateOfBirth), sex: sex, activity: activity,
-                  weeklyWorkouts: weeklyWorkouts, goal: goal,
-                  weeklyRateKg: goal.usesRate ? weeklyRateKg : 0)
-    }
-
-    func makePlan() -> UserPlan {
-        let out = PlanCalculator.calculate(input)
-        return UserPlan(heightCm: heightCm, weightKg: weightKg, dateOfBirth: dateOfBirth,
-                        biologicalSex: sex.rawValue, activityLevel: activity.rawValue,
-                        weeklyWorkouts: weeklyWorkouts, goal: goal.rawValue,
-                        weeklyRateKg: goal.usesRate ? weeklyRateKg : 0,
-                        bmr: out.bmr, tdee: out.tdee, dailyTargetKcal: out.dailyTargetKcal,
-                        proteinTargetG: out.proteinTargetG, carbsTargetG: out.carbsTargetG,
-                        fatTargetG: out.fatTargetG, satFatLimitG: out.satFatLimitG,
-                        fibreTargetG: out.fibreTargetG)
-    }
+enum OnboardingStep: Hashable {
+    case welcome
+    case health
+    case sex, dob, height, weight
+    case activity, workouts
+    case goal, rate
+    case socialProof
+    case motivations, blockers, diet
+    case triedApps, worksPro, referral
+    case trust, notifications
+    case loading, reveal
 }
 
 struct OnboardingFlow: View {
@@ -48,59 +29,364 @@ struct OnboardingFlow: View {
     @Environment(AppModel.self) private var app
 
     @State private var draft = OnboardingDraft()
-    @State private var step = 0
-    @State private var revealPlan: UserPlan? = nil
-    @State private var showReveal = false
+    @State private var step: OnboardingStep = .welcome
+    @State private var revealPlan: UserPlan?
+    @State private var healthImporting = false
+    @State private var healthImported = false
+
+    /// Ordered funnel. Rate step is conditional on a non-maintain goal.
+    private var steps: [OnboardingStep] {
+        var s: [OnboardingStep] = [.welcome]
+        if HealthKitService.isSupported { s.append(.health) }
+        s += [.sex, .dob, .height, .weight, .activity, .workouts, .goal]
+        if draft.goal.usesRate { s.append(.rate) }
+        s += [.socialProof, .motivations, .blockers, .diet, .triedApps, .worksPro,
+              .referral, .trust, .notifications, .loading, .reveal]
+        return s
+    }
+
+    private var index: Int { steps.firstIndex(of: step) ?? 0 }
+
+    /// Progress excludes welcome and the reveal payoff.
+    private var progress: Double {
+        let total = max(1, steps.count - 2)
+        return min(1, Double(max(0, index)) / Double(total))
+    }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                ProgressDots(count: 3, index: step).padding(.top, 8)
-
-                TabView(selection: $step) {
-                    AboutYouStep(draft: draft).tag(0)
-                    ActivityStep(draft: draft).tag(1)
-                    GoalStep(draft: draft).tag(2)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.snappy, value: step)
-
-                footer
-            }
-            .scranScreen()
-            .navigationDestination(isPresented: $showReveal) {
-                if let revealPlan {
-                    PlanRevealView(plan: revealPlan, primaryTitle: "Start logging") {
-                        finishOnboarding(revealPlan)
-                    }
-                    .navigationBarBackButtonHidden(true)
-                }
-            }
+        content
+            .animation(.snappy(duration: 0.25), value: step)
             .onAppear { app.analytics.track(.onboardingStarted) }
-        }
-        .tint(ScranColor.verified)
     }
 
-    private var footer: some View {
-        VStack(spacing: 12) {
-            PrimaryButton(title: step < 2 ? "Continue" : "See my plan") {
-                if step < 2 {
-                    withAnimation { step += 1 }
-                } else {
-                    revealPlan = draft.makePlan()
-                    showReveal = true
+    // MARK: - Routing
+
+    private func advance() {
+        Haptics.tap()
+        if step == .loading { return } // loading advances itself
+        let next = steps[min(index + 1, steps.count - 1)]
+        withAnimation { step = next }
+    }
+
+    private func back() {
+        let prev = steps[max(index - 1, 0)]
+        withAnimation { step = prev }
+    }
+
+    private var backAction: (() -> Void)? {
+        if index <= 0 {
+            return nil
+        } else {
+            return back
+        }
+    }
+
+    // MARK: - Content
+
+    @ViewBuilder private var content: some View {
+        contentView
+    }
+    
+    @ViewBuilder private var contentView: some View {
+        @Bindable var d = draft
+        switch step {
+        case .welcome:
+            WelcomeScreen { advance() }
+
+        case .health:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "Start with Apple Health?",
+                               subtitle: "Import your height, weight and age so you can skip the typing. Read-only — Scran never writes anything back.",
+                               ctaTitle: healthImported ? "Continue" : "Enter it manually",
+                               onContinue: advance) {
+                healthConnectCard(d)
+            }
+
+        case .sex:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "Choose your sex",
+                               subtitle: "Used only for the Mifflin-St Jeor metabolism formula.",
+                               ctaEnabled: true, onContinue: advance) {
+                VStack(spacing: 12) {
+                    ChoiceCard(title: "Male", systemIcon: "person.fill",
+                               isSelected: d.sex == .male) { d.sex = .male }
+                    ChoiceCard(title: "Female", systemIcon: "person.fill",
+                               isSelected: d.sex == .female) { d.sex = .female }
                 }
             }
-            if step > 0 {
-                Button("Back") { withAnimation { step -= 1 } }
-                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textMuted)
+
+        case .dob:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "When were you born?",
+                               subtitle: "Age factors into your daily energy calculation.",
+                               onContinue: advance) {
+                DOBPicker(date: $d.dateOfBirth).frame(maxWidth: .infinity)
+            }
+
+        case .height:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "What is your height?",
+                               onContinue: advance) {
+                HeightPicker(heightCm: $d.heightCm, unit: $d.heightUnit).frame(maxWidth: .infinity)
+            }
+
+        case .weight:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "What is your weight?",
+                               onContinue: advance) {
+                VStack(spacing: 18) {
+                    ScranSegmented(options: WeightUnit.allCases.map { ($0, $0.label) },
+                                   selection: $d.weightUnit).frame(maxWidth: 240)
+                    if d.weightUnit == .kg {
+                        RulerSlider(value: $d.weightKg, range: 35...200, step: 0.1, unit: "kg")
+                    } else {
+                        let lbBinding = Binding<Double>(
+                            get: { d.weightKg * 2.2046226 },
+                            set: { d.weightKg = $0 / 2.2046226 }
+                        )
+                        RulerSlider(value: lbBinding, range: 77...440, step: 0.2, unit: "lbs")
+                    }
+                }
+            }
+
+        case .activity:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "How active are you?",
+                               onContinue: advance) {
+                VStack(spacing: 12) {
+                    ForEach(ActivityLevel.allCases) { lvl in
+                        ChoiceCard(title: lvl.label, subtitle: lvl.blurb,
+                                   systemIcon: "figure.walk",
+                                   isSelected: d.activity == lvl) { d.activity = lvl }
+                    }
+                }
+            }
+
+        case .workouts:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "How many workouts per week?",
+                               subtitle: "This calibrates your plan — and we never add the calories back.",
+                               onContinue: advance) {
+                VStack(spacing: 12) {
+                    workoutCard("0–2", "Now and then", value: 1)
+                    workoutCard("3–5", "A few workouts a week", value: 4)
+                    workoutCard("6+", "Dedicated athlete", value: 6)
+                }
+            }
+
+        case .goal:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "What is your goal?",
+                               subtitle: "This shapes your calorie target — shown with full working.",
+                               onContinue: advance) {
+                VStack(spacing: 12) {
+                    ChoiceCard(title: "Lose weight", systemIcon: "arrow.down",
+                               isSelected: d.goal == .lose) { d.goal = .lose }
+                    ChoiceCard(title: "Maintain", systemIcon: "minus",
+                               isSelected: d.goal == .maintain) { d.goal = .maintain }
+                    ChoiceCard(title: "Gain weight", systemIcon: "arrow.up",
+                               isSelected: d.goal == .gain) { d.goal = .gain }
+                }
+            }
+
+        case .rate:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "How fast?",
+                               subtitle: "A faster rate means a tighter daily target. 0.5 kg/week is a sustainable default.",
+                               onContinue: advance) {
+                VStack(spacing: 18) {
+                    ScranSegmented(options: [(0.25, "0.25 kg"), (0.5, "0.5 kg"), (0.75, "0.75 kg")],
+                                   selection: $d.weeklyRateKg)
+                    Text("// per week")
+                        .font(ScranFont.mono(12, relativeTo: .caption))
+                        .foregroundStyle(ScranColor.textMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+        case .socialProof:
+            SocialProofScreen(progress: progress, onBack: backAction, onContinue: advance)
+
+        case .motivations:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "What would you like to accomplish?",
+                               subtitle: "Pick any that fit — we'll reflect these in your plan.",
+                               ctaEnabled: !d.motivations.isEmpty, onContinue: advance) {
+                MultiSelectList(options: Motivation.allCases, selection: $d.motivations,
+                                label: \.label, icon: { $0.icon })
+            }
+
+        case .blockers:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "What's stopping you from reaching your goals?",
+                               ctaEnabled: !d.blockers.isEmpty, onContinue: advance) {
+                MultiSelectList(options: Blocker.allCases, selection: $d.blockers,
+                                label: \.label, icon: { $0.icon })
+            }
+
+        case .diet:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "Do you follow a specific diet?",
+                               ctaEnabled: d.diet != nil, onContinue: advance) {
+                SingleSelectList(options: DietType.allCases, selection: $d.diet,
+                                 label: \.label, icon: { $0.icon })
+            }
+
+        case .triedApps:
+            yesNo(title: "Have you tried other calorie tracking apps?",
+                  subtitle: nil, value: $d.triedOtherApps)
+
+        case .worksPro:
+            yesNo(title: "Do you work with a personal trainer or dietitian?",
+                  subtitle: "We'll make your data easy to export and share.", value: $d.worksWithPro)
+
+        case .referral:
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "Where did you hear about us?",
+                               ctaEnabled: d.referral != nil, onContinue: advance) {
+                SingleSelectList(options: ReferralSource.allCases, selection: $d.referral,
+                                 label: \.label, icon: { $0.icon })
+            }
+
+        case .trust:
+            AffirmationScreen(progress: progress, onBack: backAction,
+                              icon: "checkmark.seal.fill",
+                              title: "Thank you for trusting us",
+                              subtitle: "Now let's build your plan — with every number sourced and the maths on screen.",
+                              badge: "No account needed",
+                              badgeDetail: "You're already signed in anonymously. Your log stays yours, exportable any time.",
+                              onContinue: advance)
+
+        case .notifications:
+            PermissionPrimeScreen(
+                progress: progress, onBack: backAction,
+                icon: "bell.badge.fill",
+                title: "Stay on track",
+                subtitle: "A gentle daily nudge to log — never spam, and you can turn it off any time.",
+                primaryTitle: "Enable reminders",
+                onPrimary: { await OnboardingPermissions.requestNotifications(); advance() },
+                onSkip: advance)
+
+        case .loading:
+            HonestPlanLoadingScreen(
+                output: PlanCalculator.calculate(draft.input),
+                workouts: draft.weeklyWorkouts,
+                onPrefetch: { await prefetchPlan() },
+                onDone: { withAnimation { step = .reveal } })
+
+        case .reveal:
+            if let revealPlan {
+                PlanRevealView(plan: revealPlan, primaryTitle: "Start logging") {
+                    finish(revealPlan)
+                }
+                .navigationBarBackButtonHidden(true)
+            } else {
+                ProgressView().tint(ScranColor.verified).scranScreen()
+                    .task { await prefetchPlan() }
             }
         }
-        .padding(20)
     }
 
-    private func finishOnboarding(_ plan: UserPlan) {
+    // MARK: - Helpers
+
+    private func workoutCard(_ title: String, _ subtitle: String, value: Int) -> some View {
+        ChoiceCard(title: title, subtitle: subtitle, systemIcon: "flame.fill",
+                   isSelected: draft.weeklyWorkouts == value) { draft.weeklyWorkouts = value }
+    }
+
+    // MARK: - Apple Health step
+
+    @ViewBuilder private func healthConnectCard(_ d: OnboardingDraft) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                Task { await importHealth(into: d) }
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(healthImported ? ScranColor.verified : ScranColor.error)
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(healthImported ? ScranColor.verifiedDim : ScranColor.panel2))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(healthImported ? "Imported from Apple Health" : "Connect Apple Health")
+                            .font(ScranFont.body(16, weight: .semibold, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textPrimary)
+                        Text(healthImported ? importedSummary(d) : "Height, weight, age & sex")
+                            .font(ScranFont.body(13, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.textMuted)
+                    }
+                    Spacer(minLength: 8)
+                    if healthImporting {
+                        ProgressView().tint(ScranColor.verified)
+                    } else {
+                        Image(systemName: healthImported ? "checkmark.circle.fill" : "chevron.right")
+                            .font(.system(size: healthImported ? 22 : 15, weight: .semibold))
+                            .foregroundStyle(healthImported ? ScranColor.verified : ScranColor.textMuted)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(healthImported ? ScranColor.verifiedDim : ScranColor.panel))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(healthImported ? ScranColor.verified.opacity(0.6) : ScranColor.line,
+                                  lineWidth: healthImported ? 1.5 : 1))
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(healthImporting || healthImported)
+
+            Text("// read-only — your data stays on your phone")
+                .font(ScranFont.mono(11, relativeTo: .caption2))
+                .foregroundStyle(ScranColor.textMuted)
+        }
+    }
+
+    private func importedSummary(_ d: OnboardingDraft) -> String {
+        var parts: [String] = []
+        if d.heightCm > 50 { parts.append("\(Int(d.heightCm)) cm") }
+        if d.weightKg > 20 { parts.append(String(format: "%.1f kg", d.weightKg)) }
+        let age = PlanCalculator.age(from: d.dateOfBirth)
+        if age > 0 { parts.append("age \(age)") }
+        return parts.isEmpty ? "Tap Continue to carry on" : parts.joined(separator: " · ")
+    }
+
+    private func importHealth(into d: OnboardingDraft) async {
+        healthImporting = true
+        defer { healthImporting = false }
+        guard await HealthKitService.shared.requestAuthorization() else { return }
+        let snap = await HealthKitService.shared.snapshot()
+        if let s = snap.biologicalSex, let sex = BiologicalSex(rawValue: s) { d.sex = sex }
+        if let dob = snap.dateOfBirth { d.dateOfBirth = dob }
+        if let h = snap.heightCm, h > 50 { d.heightCm = h }
+        if let w = snap.weightKg, w > 20 { d.weightKg = w }
+        UserDefaults.standard.set(true, forKey: "scran.healthConnected")
+        healthImported = true
+        Haptics.success()
+    }
+
+    private func yesNo(title: String, subtitle: String?, value: Binding<Bool?>) -> some View {
+        OnboardingScaffold(progress: progress, onBack: backAction, title: title, subtitle: subtitle,
+                           ctaEnabled: value.wrappedValue != nil, onContinue: advance) {
+            VStack(spacing: 12) {
+                ChoiceCard(title: "Yes", systemIcon: "hand.thumbsup.fill",
+                           isSelected: value.wrappedValue == true) { value.wrappedValue = true }
+                ChoiceCard(title: "No", systemIcon: "hand.thumbsdown.fill",
+                           isSelected: value.wrappedValue == false) { value.wrappedValue = false }
+            }
+        }
+    }
+
+    /// Build the plan once and prefetch its explanation so the reveal is instant.
+    private func prefetchPlan() async {
+        let plan = revealPlan ?? draft.makePlan()
+        if plan.explanation == nil {
+            if let text = try? await ScanService.explainPlan(plan) { plan.explanation = text }
+        }
+        revealPlan = plan
+    }
+
+    private func finish(_ plan: UserPlan) {
         context.insert(plan)
         try? context.save()
         app.analytics.track(.planCreated(goal: plan.goal, rate: plan.weeklyRateKg))
@@ -111,176 +397,52 @@ struct OnboardingFlow: View {
     }
 }
 
-// MARK: - Steps
+// MARK: - Welcome
 
-private struct AboutYouStep: View {
-    @Bindable var draft: OnboardingDraft
-    var body: some View {
-        StepScaffold(eyebrow: "About you", title: "The basics") {
-            VStack(spacing: 20) {
-                LabeledControl("Sex") {
-                    ScranSegmented(options: BiologicalSex.allCases.map { ($0, $0.label) },
-                                   selection: $draft.sex)
-                }
-                LabeledControl("Date of birth") {
-                    DatePicker("", selection: $draft.dateOfBirth, in: ...Date(),
-                               displayedComponents: .date)
-                        .datePickerStyle(.compact).labelsHidden().tint(ScranColor.verified)
-                        .colorScheme(.dark)
-                }
-                SliderControl(label: "Height", value: $draft.heightCm, range: 140...210,
-                              step: 1, format: { "\(Int($0)) cm" })
-                SliderControl(label: "Weight", value: $draft.weightKg, range: 40...180,
-                              step: 0.5, format: { String(format: "%.1f kg", $0) })
-            }
-        }
-    }
-}
+private struct WelcomeScreen: View {
+    let onStart: () -> Void
 
-private struct ActivityStep: View {
-    @Bindable var draft: OnboardingDraft
     var body: some View {
-        StepScaffold(eyebrow: "Movement", title: "How active are you?") {
-            VStack(spacing: 12) {
-                ForEach(ActivityLevel.allCases) { level in
-                    SelectableRow(title: level.label, subtitle: level.blurb,
-                                  selected: draft.activity == level) {
-                        draft.activity = level; Haptics.selection()
+        VStack(spacing: 0) {
+            Spacer()
+            ZStack {
+                RadialGlow(diameter: 420)
+                VStack(spacing: 20) {
+                    ZStack {
+                        Circle().stroke(ScranColor.lineStrong, lineWidth: 12)
+                            .frame(width: 150, height: 150)
+                        Circle().trim(from: 0, to: 0.72)
+                            .stroke(ScranColor.verified, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 150, height: 150)
+                            .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
+                        Circle().fill(ScranColor.verified).frame(width: 34, height: 34)
+                            .shadow(color: ScranColor.verified.opacity(0.8), radius: 10)
                     }
                 }
-                LabeledControl("Workouts per week") {
-                    Stepper(value: $draft.weeklyWorkouts, in: 0...14) {
-                        Text("\(draft.weeklyWorkouts)")
-                            .font(ScranFont.mono(16, weight: .bold, relativeTo: .body))
-                            .foregroundStyle(ScranColor.textPrimary)
-                    }
-                    .tint(ScranColor.verified)
-                }
-                .padding(.top, 6)
             }
-        }
-    }
-}
-
-private struct GoalStep: View {
-    @Bindable var draft: OnboardingDraft
-    var body: some View {
-        StepScaffold(eyebrow: "Your goal", title: "What are you after?") {
-            VStack(spacing: 16) {
-                ScranSegmented(options: Goal.allCases.map { ($0, $0.label) },
-                               selection: $draft.goal)
-                if draft.goal.usesRate {
-                    LabeledControl("Weekly rate") {
-                        ScranSegmented(options: [(0.25, "0.25 kg"), (0.5, "0.5 kg"), (0.75, "0.75 kg")],
-                                       selection: $draft.weeklyRateKg)
-                    }
-                    SliderControl(label: draft.goal == .lose ? "Target weight" : "Target weight",
-                                  value: $draft.targetWeightKg, range: 40...180, step: 0.5,
-                                  format: { String(format: "%.1f kg", $0) })
-                }
-                Text("// the faster the rate, the tighter the daily target")
-                    .font(ScranFont.mono(12, relativeTo: .caption))
-                    .foregroundStyle(ScranColor.textMuted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
-}
-
-// MARK: - Reusable step pieces
-
-private struct StepScaffold<Content: View>: View {
-    let eyebrow: String
-    let title: String
-    @ViewBuilder var content: Content
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Eyebrow(text: eyebrow, color: ScranColor.verified, ruleColor: ScranColor.verified)
-                Text(title)
-                    .font(ScranFont.display(34, relativeTo: .largeTitle)).textCase(.uppercase)
+            Spacer()
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Calorie tracking that shows its working")
+                    .font(ScranFont.display(36, relativeTo: .largeTitle))
+                    .textCase(.uppercase)
                     .foregroundStyle(ScranColor.textPrimary)
-                content
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Every number has a source. Every plan shows its maths. UK-first, honest by design.")
+                    .font(ScranFont.body(16, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textMuted)
             }
-            .padding(20)
-        }
-    }
-}
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
 
-private struct LabeledControl<Content: View>: View {
-    let label: String
-    @ViewBuilder var content: Content
-    init(_ label: String, @ViewBuilder content: () -> Content) {
-        self.label = label; self.content = content()
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(label).font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
+            PrimaryButton(title: "Get started", systemImage: "arrow.right", action: onStart)
+                .padding(.horizontal, 20)
+            Text("// no card required · free forever tier")
+                .font(ScranFont.mono(12, relativeTo: .caption))
                 .foregroundStyle(ScranColor.textMuted)
-            content
+                .padding(.top, 12).padding(.bottom, 8)
         }
-    }
-}
-
-private struct SliderControl: View {
-    let label: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let format: (Double) -> String
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(label).font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
-                    .foregroundStyle(ScranColor.textMuted)
-                Spacer()
-                Text(format(value)).font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textPrimary)
-            }
-            Slider(value: $value, in: range, step: step).tint(ScranColor.verified)
-        }
-    }
-}
-
-private struct SelectableRow: View {
-    let title: String
-    let subtitle: String
-    let selected: Bool
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(ScranFont.body(16, weight: .semibold, relativeTo: .body))
-                        .foregroundStyle(ScranColor.textPrimary)
-                    Text(subtitle).font(ScranFont.body(13, relativeTo: .footnote))
-                        .foregroundStyle(ScranColor.textMuted)
-                }
-                Spacer()
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? ScranColor.verified : ScranColor.lineStrong)
-            }
-            .padding(16)
-            .background(RoundedRectangle(cornerRadius: 16)
-                .fill(selected ? ScranColor.verifiedDim : ScranColor.panel))
-            .overlay(RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(selected ? ScranColor.verified.opacity(0.5) : ScranColor.line, lineWidth: 1))
-        }
-        .buttonStyle(PressableStyle())
-    }
-}
-
-struct ProgressDots: View {
-    let count: Int
-    let index: Int
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<count, id: \.self) { i in
-                Capsule()
-                    .fill(i <= index ? ScranColor.verified : ScranColor.lineStrong)
-                    .frame(width: i == index ? 22 : 8, height: 6)
-                    .animation(.snappy, value: index)
-            }
-        }
+        .scranScreen()
     }
 }

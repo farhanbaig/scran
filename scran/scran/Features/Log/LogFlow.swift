@@ -85,10 +85,28 @@ struct LogFlowView: View {
         case .barcode, .label, .plate:
             Text("Camera unavailable").foregroundStyle(ScranColor.textMuted).scranScreen()
         #endif
-        case .saved:   SavedMealsView(mode: .picker, onLogged: { coord.finished() })
+        case .saved:
+            SavedMealsView(mode: .picker, onLogged: { coord.finished() })
+                .toolbar { closeButton(coord) }
         case .manual:
             EntryEditorView(draft: manualDraft, onLogged: { coord.finished() })
                 .navigationTitle("Manual entry")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { closeButton(coord) }
+        }
+    }
+
+    /// These roots have no full-screen cancel of their own (unlike the camera
+    /// screens), so give them an explicit Close so the sheet can be dismissed.
+    @ToolbarContentBuilder
+    private func closeButton(_ coord: LogCoordinator) -> some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { Haptics.tap(); coord.cancel() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(ScranColor.textPrimary)
+            }
+            .accessibilityLabel("Close")
         }
     }
 }

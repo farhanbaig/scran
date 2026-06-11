@@ -17,6 +17,7 @@ struct ScanProgressView: View {
     #if canImport(UIKit)
     var image: UIImage?
     #endif
+    var cancel: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 24) {
@@ -28,12 +29,19 @@ struct ScanProgressView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                     .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ScranColor.line))
                     .opacity(0.7)
+                    .accessibilityHidden(true)
             }
             #endif
             ProgressView().tint(accent).scaleEffect(1.4)
             Text(message)
                 .font(ScranFont.mono(14, relativeTo: .body))
                 .foregroundStyle(ScranColor.textMuted)
+            if let cancel {
+                Button("Cancel") { Haptics.tap(); cancel() }
+                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textMuted)
+                    .padding(.top, 8)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -51,6 +59,7 @@ struct ScanErrorView: View {
             Spacer()
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 38)).foregroundStyle(accent)
+                .accessibilityHidden(true)
             Text(title)
                 .font(ScranFont.display(26, relativeTo: .title)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary).multilineTextAlignment(.center)
@@ -59,7 +68,7 @@ struct ScanErrorView: View {
                 .foregroundStyle(ScranColor.textMuted).multilineTextAlignment(.center)
             Spacer()
             PrimaryButton(title: "Retake", systemImage: "camera") { retake() }
-            Button("Cancel") { cancel() }
+            Button("Cancel") { Haptics.tap(); cancel() }
                 .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                 .foregroundStyle(ScranColor.textMuted)
         }

@@ -14,6 +14,7 @@ struct PlanEditView: View {
     @Environment(\.modelContext) private var context
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
+    @Environment(ChromeVisibility.self) private var chrome: ChromeVisibility?
 
     // Local editable copies so the live plan only changes on Save.
     @State private var sex: BiologicalSex
@@ -24,6 +25,8 @@ struct PlanEditView: View {
     @State private var workouts: Int
     @State private var goal: Goal
     @State private var rate: Double
+    @State private var heightUnit: HeightUnit = .cm
+    @State private var weightUnit: WeightUnit = .kg
 
     init(plan: UserPlan) {
         self.plan = plan
@@ -54,10 +57,24 @@ struct PlanEditView: View {
                 }
                 group("Date of birth") {
                     DatePicker("", selection: $dob, in: ...Date(), displayedComponents: .date)
-                        .datePickerStyle(.compact).labelsHidden().tint(ScranColor.verified).colorScheme(.dark)
+                        .datePickerStyle(.compact).labelsHidden().tint(ScranColor.verified)
                 }
-                sliderGroup("Height", value: $heightCm, range: 140...210, step: 1) { "\(Int($0)) cm" }
-                sliderGroup("Weight", value: $weightKg, range: 40...180, step: 0.5) { String(format: "%.1f kg", $0) }
+                group("Height") {
+                    HeightPicker(heightCm: $heightCm, unit: $heightUnit).frame(maxWidth: .infinity)
+                }
+                group("Weight") {
+                    VStack(spacing: 14) {
+                        ScranSegmented(options: WeightUnit.allCases.map { ($0, $0.label) },
+                                       selection: $weightUnit).frame(maxWidth: 220)
+                        if weightUnit == .kg {
+                            RulerSlider(value: $weightKg, range: 35...200, step: 0.1, unit: "kg")
+                        } else {
+                            RulerSlider(value: Binding(get: { weightKg * 2.2046226 },
+                                                       set: { weightKg = $0 / 2.2046226 }),
+                                        range: 77...440, step: 0.2, unit: "lbs")
+                        }
+                    }
+                }
                 group("Activity") {
                     ScranSegmented(options: ActivityLevel.allCases.map { ($0, shortLabel($0)) }, selection: $activity)
                 }
@@ -82,9 +99,11 @@ struct PlanEditView: View {
         .navigationTitle("Edit plan")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: "Recalculate", systemImage: "function") { save() }
-                .padding(20).background(.ultraThinMaterial)
+            PrimaryButton(title: "Save & update plan", systemImage: "checkmark") { save() }
+                .padding(20).scranBottomBar()
         }
+        .onAppear { chrome?.tabBarHidden = true }
+        .onDisappear { chrome?.tabBarHidden = false }
     }
 
     private var preview: some View {
@@ -107,19 +126,6 @@ struct PlanEditView: View {
             Text(label).font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
                 .foregroundStyle(ScranColor.textMuted)
             content()
-        }
-    }
-
-    private func sliderGroup(_ label: String, value: Binding<Double>,
-                             range: ClosedRange<Double>, step: Double,
-                             format: @escaping (Double) -> String) -> some View {
-        group(label) {
-            HStack {
-                Slider(value: value, in: range, step: step).tint(ScranColor.verified)
-                Text(format(value.wrappedValue))
-                    .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textPrimary).frame(width: 78, alignment: .trailing)
-            }
         }
     }
 

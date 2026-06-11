@@ -17,6 +17,7 @@ struct EntryEditorView: View {
     @Environment(AppModel.self) private var app
     @State private var showPer100g = false
     @State private var logging = false
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -47,10 +48,19 @@ struct EntryEditorView: View {
                 log()
             }
             .padding(20)
-            .background(.ultraThinMaterial)
+            .scranBottomBar()
         }
         .navigationTitle("Confirm")
         .navigationBarTitleDisplayMode(.inline)
+        // Decimal pads have no return key — give every numeric field a Done.
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { fieldFocused = false }
+                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: - Sections
@@ -176,6 +186,7 @@ struct EntryEditorView: View {
             Spacer()
             TextField("0", value: value, format: .number)
                 .keyboardType(.decimalPad)
+                .focused($fieldFocused)
                 .multilineTextAlignment(.trailing)
                 .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
                 .foregroundStyle(ScranColor.textPrimary)
@@ -196,6 +207,7 @@ struct EntryEditorView: View {
             Spacer()
             TextField("—", value: proxy, format: .number)
                 .keyboardType(.decimalPad)
+                .focused($fieldFocused)
                 .multilineTextAlignment(.trailing)
                 .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
                 .foregroundStyle(ScranColor.textPrimary)
