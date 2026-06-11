@@ -16,7 +16,7 @@ struct EntryDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 #if canImport(UIKit)
                 if let photo = PhotoStore.image(atRelativePath: entry.photoLocalPath) {

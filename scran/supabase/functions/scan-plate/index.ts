@@ -1,28 +1,46 @@
-// scan-plate — honest plate estimation via Gemini. Robust by design: pinned
-// fast model (no "-latest" alias drift), thinking disabled (auto-fallback if
-// the param is rejected), tolerant JSON parsing + coercion, per-portion prompt
-// that's easier for the model. Computes the per-100g block the client expects.
+// scan-plate — honest, careful plate estimation via Gemini. Pinned fast model
+// (no "-latest" alias drift), thinking disabled (auto-fallback if rejected),
+// tolerant JSON parsing + coercion. Returns per-item solid/liquid + units, an
+// "alternatives" list for ambiguous items, and up to two structured follow-up
+// questions (with tappable options) that materially improve accuracy.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   callGeminiJSON, cleanBase64, corsHeaders, extractJSON, FREE_DAILY_SCANS,
   GEMINI_DEFAULT_MODEL, GeminiError, getUser, isPro, json, newRequestId, num,
   rateLimited, recordScan, scansUsedToday, serviceClient,
-} from "../_shared/mod.ts";
+} from "./_shared.ts";
 
-const SYSTEM = `You estimate the nutrition of a plate of food from a photo, for a UK audience. Output STRICT JSON ONLY (no prose, no markdown).
-For EACH distinct food item give: name, grams (estimated portion weight), and the nutrition FOR THAT PORTION: kcal, proteinG, carbsG, fatG, and optionally satFatG, fibreG, sugarG, saltG (use null if unsure). Also confidence in [0,1].
-ESTIMATE ONLY WHAT IS VISIBLE. Never assume a typical serving that is not in the photo; anchor grams to what is physically on the plate, using the plate (~26 cm dinner plate unless clearly smaller) as the size reference.
-If the plate is mostly empty — residue, smears, bones, scraps — the visible food is usually only 10–60 g. Estimate just those remnants, set confidence at or below 0.4, and use the clarifyingQuestion to ask whether they want to log the full meal they already ate (clarifyingImpact: the likely kcal difference).
-Confidence calibration: 0.85+ only for distinct, clearly visible items; 0.6–0.8 for a typical mixed plate; 0.5 or below when food is obscured, mixed into sauces, or mostly eaten. Be honest — photos hide oil, dressing, sugar.
+const SYSTEM = `You are a careful UK nutrition estimator. From a photo of a meal or drink, identify each item as precisely as possible and estimate its nutrition. Output STRICT JSON ONLY (no prose, no markdown).
+
+IDENTIFY PRECISELY. Name the specific food, not a category: "Grilled chicken thigh" not "meat"; "Cappuccino" not "coffee"; "Basmati rice" not "rice". If you cannot be sure, give your single best guess as the name AND list other plausible identities in "alternatives".
+
+FOR EACH ITEM provide:
+- name: specific best guess
+- kind: "solid" or "liquid" (drinks, soups, smoothies, broths = liquid; everything you'd chew = solid)
+- amount: estimated portion size — GRAMS for solids, MILLILITRES for liquids
+- unit: "g" or "ml" (must match kind)
+- the nutrition FOR THAT PORTION: kcal, proteinG, carbsG, fatG, and optionally satFatG, fibreG, sugarG, saltG (null if genuinely unknown)
+- confidence in [0,1] — be honest; lower it when the item is obscured, mixed into sauce, or you guessed
+- alternatives: 2–4 other plausible identities when you are unsure what the item is (e.g. an ambiguous red meat → ["Lamb","Pork","Beef"]); otherwise []
+
+PORTIONS: estimate only what is VISIBLE, using the plate/cup/cutlery for scale (assume a ~26 cm dinner plate / ~250 ml mug unless clearly otherwise). A mostly-eaten/empty plate usually has only 10–60 g of remnants — estimate just those, set confidence ≤ 0.4, and ask (via a question) whether to log the full meal.
+
+QUESTIONS: provide up to 2 follow-up questions that would MOST change the calorie estimate — only ask when it genuinely matters. Each question = { "prompt": short question, "options": 2–5 concrete tappable choices, "multi": true if several can apply }. Make options specific and ordered sensibly. Examples:
+- hot/iced drinks → {"prompt":"Which milk?","options":["None / black","Semi-skimmed","Whole","Oat","Almond"],"multi":false} and {"prompt":"Sugar or syrup?","options":["None","1 tsp","2 tsp","Flavoured syrup"],"multi":false}
+- curry / stir-fry → {"prompt":"How was it cooked?","options":["Little oil","Lots of oil or ghee","Creamy / coconut sauce"],"multi":false}
+- toppings → {"prompt":"Any toppings?","options":["Cheese","Dressing","Croutons","Seeds"],"multi":true}
+- cereal / pasta → a portion-size question.
 UK conventions: salt not sodium.
-Ask AT MOST ONE clarifyingQuestion only when the answer materially changes the result (mostly-eaten plate, cooked in oil/ghee, dressing, sugar in drink, fried vs grilled); else null.
-If a USER CORRECTION is supplied with the photo, it is ground truth from the person who ate the meal: rename, replace, add or remove items exactly as it says, re-estimate nutrition for the corrected items, and raise confidence on corrected items to at least 0.85. A correction may answer a previous clarifying question (e.g. "yes — log the full meal I ate"): honour it, and never repeat a question it answers.
-If there is genuinely no food, return status "no_food" with items [].
-Shape:
-{"status":"ok|no_food","items":[{"name":string,"grams":number,"kcal":number,"proteinG":number,"carbsG":number,"fatG":number,"satFatG":number|null,"fibreG":number|null,"sugarG":number|null,"saltG":number|null,"confidence":number}],"overallConfidence":number,"clarifyingQuestion":string|null,"clarifyingImpact":string|null}`;
 
-function toPer100g(it: Record<string, unknown>, grams: number) {
-  const f = grams > 0 ? 100 / grams : 0;
+CORRECTIONS: if a USER CORRECTION or ANSWERS are provided with the photo, treat them as ground truth — re-identify or replace items, re-estimate accordingly, raise confidence on resolved items to ≥0.85, and DROP any question the user has already answered.
+
+If there is genuinely no food or drink, return {"status":"no_food","items":[],"questions":[]}.
+
+Shape:
+{"status":"ok|no_food","items":[{"name":string,"kind":"solid|liquid","amount":number,"unit":"g|ml","kcal":number,"proteinG":number,"carbsG":number,"fatG":number,"satFatG":number|null,"fibreG":number|null,"sugarG":number|null,"saltG":number|null,"confidence":number,"alternatives":[string]}],"overallConfidence":number,"questions":[{"prompt":string,"options":[string],"multi":boolean}]}`;
+
+function toPer100g(it: Record<string, unknown>, amount: number) {
+  const f = amount > 0 ? 100 / amount : 0;
   const scale = (v: number | null) => (v == null ? null : Math.round(v * f * 10) / 10);
   return {
     kcal: Math.round((num(it.kcal, 0) as number) * f),
@@ -36,6 +54,47 @@ function toPer100g(it: Record<string, unknown>, grams: number) {
   };
 }
 
+function mapItems(parsed: Record<string, unknown>) {
+  const raw = Array.isArray(parsed.items) ? parsed.items : [];
+  return raw
+    .map((it: Record<string, unknown>) => {
+      const amount = num(it.amount ?? it.grams ?? it.estimatedGrams, 0) as number;
+      if (!amount || amount <= 0) return null;
+      const kind = it.kind === "liquid" ? "liquid" : "solid";
+      const unit = it.unit === "ml" || it.unit === "g" ? it.unit : (kind === "liquid" ? "ml" : "g");
+      const name = typeof it.name === "string" && it.name.trim() ? it.name.trim() : "Food item";
+      const alternatives = Array.isArray(it.alternatives)
+        ? it.alternatives.filter((x) => typeof x === "string" && x.trim()).slice(0, 4)
+        : [];
+      return {
+        name,
+        kind,
+        unit,
+        estimatedGrams: Math.round(amount),
+        per100g: toPer100g(it, amount),
+        confidence: Math.min(1, Math.max(0, num(it.confidence, 0.6) as number)),
+        alternatives,
+      };
+    })
+    .filter((x: unknown) => x !== null);
+}
+
+function mapQuestions(parsed: Record<string, unknown>) {
+  const raw = Array.isArray(parsed.questions) ? parsed.questions : [];
+  return raw
+    .map((q: Record<string, unknown>) => {
+      const prompt = typeof q.prompt === "string" ? q.prompt
+        : (typeof q.question === "string" ? q.question : null);
+      if (!prompt || !prompt.trim()) return null;
+      const options = Array.isArray(q.options)
+        ? q.options.filter((x) => typeof x === "string" && x.trim()).slice(0, 6)
+        : [];
+      return { prompt: prompt.trim(), options, multi: q.multi === true };
+    })
+    .filter((x: unknown) => x !== null)
+    .slice(0, 3);
+}
+
 Deno.serve(async (req) => {
   const rid = newRequestId();
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -46,11 +105,8 @@ Deno.serve(async (req) => {
     if (rateLimited(user.id)) return json({ error: "rate_limited", rid }, 429);
 
     const { imageBase64, correction } = await req.json().catch(() => ({}));
-    // A correction is a refinement of a scan the user already spent — it gets a
-    // fresh Gemini pass but neither checks nor consumes the daily quota (the
-    // burst rate limit above still bounds it).
     const note = typeof correction === "string" && correction.trim()
-      ? correction.trim().slice(0, 280) : null;
+      ? correction.trim().slice(0, 600) : null;
 
     const sb = serviceClient();
     const pro = await isPro(user.id);
@@ -62,7 +118,7 @@ Deno.serve(async (req) => {
     }
 
     if (typeof imageBase64 !== "string" || imageBase64.length < 32) {
-      return json({ status: "no_food", items: [], overallConfidence: 0, clarifyingQuestion: null, clarifyingImpact: null, rid }, 200);
+      return json({ status: "no_food", items: [], overallConfidence: 0, questions: [], rid }, 200);
     }
 
     const model = Deno.env.get("GEMINI_MODEL_PLATE") ?? Deno.env.get("GEMINI_MODEL") ?? GEMINI_DEFAULT_MODEL;
@@ -71,7 +127,7 @@ Deno.serve(async (req) => {
     try {
       raw = await callGeminiJSON(
         model, SYSTEM, cleanBase64(imageBase64),
-        note ? `USER CORRECTION: ${note}` : null);
+        note ? `USER CORRECTION / ANSWERS: ${note}` : null);
     } catch (e) {
       const gErr = e as GeminiError;
       const gStatus = typeof gErr?.status === "number" ? gErr.status : 0;
@@ -85,41 +141,28 @@ Deno.serve(async (req) => {
     const parsed = extractJSON(raw);
     if (!parsed || typeof parsed !== "object") {
       console.error(rid, "unparseable", raw.slice(0, 200));
-      return json({ status: "no_food", items: [], overallConfidence: 0, clarifyingQuestion: null, clarifyingImpact: null, note: "unparseable", rid }, 200);
+      return json({ status: "no_food", items: [], overallConfidence: 0, questions: [], note: "unparseable", rid }, 200);
     }
 
-    const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
-    const items = rawItems
-      .map((it: Record<string, unknown>) => {
-        const grams = num(it.grams ?? it.estimatedGrams, 0) as number;
-        if (!grams || grams <= 0) return null;
-        const name = typeof it.name === "string" && it.name.trim() ? it.name.trim() : "Food item";
-        return {
-          name,
-          estimatedGrams: Math.round(grams),
-          per100g: toPer100g(it, grams),
-          confidence: Math.min(1, Math.max(0, num(it.confidence, 0.6) as number)),
-        };
-      })
-      .filter((x: unknown) => x !== null);
-
+    const items = mapItems(parsed);
     if (items.length === 0) {
-      return json({ status: "no_food", items: [], overallConfidence: 0, clarifyingQuestion: null, clarifyingImpact: null, rid }, 200);
+      return json({ status: "no_food", items: [], overallConfidence: 0, questions: [], rid }, 200);
     }
+    const questions = mapQuestions(parsed);
 
     const overall = (num(parsed.overallConfidence, null) as number | null)
       ?? (items.reduce((s: number, i: { confidence: number }) => s + i.confidence, 0) / items.length);
-    const cq = typeof parsed.clarifyingQuestion === "string" ? parsed.clarifyingQuestion : null;
-    const ci = typeof parsed.clarifyingImpact === "string" ? parsed.clarifyingImpact : null;
 
     if (!note) await recordScan(sb, user.id, "plate");
     const remaining = pro ? null : Math.max(0, FREE_DAILY_SCANS - (await scansUsedToday(sb, user.id)));
 
     return json({
-      status: "ok", items,
+      status: "ok",
+      items,
       overallConfidence: Math.min(1, Math.max(0, overall)),
-      clarifyingQuestion: cq, clarifyingImpact: ci,
-      scansRemaining: remaining, rid,
+      questions,
+      scansRemaining: remaining,
+      rid,
     }, 200);
   } catch (e) {
     console.error(rid, "unhandled", String(e));

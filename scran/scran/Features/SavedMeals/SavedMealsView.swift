@@ -79,8 +79,7 @@ struct SavedMealsView: View {
 
     private var empty: some View {
         VStack(spacing: 16) {
-            Image(systemName: "bookmark")
-                .font(.system(size: 40)).foregroundStyle(ScranColor.textMuted)
+            PlateMark(size: 156)
             Text("No saved meals yet")
                 .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)

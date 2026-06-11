@@ -41,6 +41,13 @@ enum ScranConfig {
     // MARK: - Sentry
     static let sentryDSN = ""
 
+    // MARK: - Auth
+    /// Flip to `true` once Sign in with Apple is configured in BOTH the Apple
+    /// Developer portal (Services ID + key, capability on the App ID) and the
+    /// Supabase dashboard (Apple provider enabled, bundle id as a client). Until
+    /// then the Apple button stays hidden so users never hit a broken flow.
+    static let appleSignInEnabled = true
+
     // MARK: - Product rules
     static let freeDailyScans = 3
     static let freeSavedMealsLimit = 10

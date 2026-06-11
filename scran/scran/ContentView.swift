@@ -18,12 +18,19 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if plans.isEmpty {
-                OnboardingFlow()
-            } else {
+            if !app.authResolved {
+                AuthSplash()
+            } else if app.isAuthenticated && !plans.isEmpty {
                 MainTabView()
+            } else {
+                // Not signed in (or signed in without a plan yet) → onboarding.
+                // Onboarding asks the questions first, then asks to create an
+                // account near the end (to build + save the plan).
+                OnboardingFlow()
             }
         }
+        .animation(.snappy(duration: 0.3), value: app.authResolved)
+        .animation(.snappy(duration: 0.3), value: plans.isEmpty)
         .task { await app.bootstrap(context: context) }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

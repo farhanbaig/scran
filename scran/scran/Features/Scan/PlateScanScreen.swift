@@ -20,7 +20,6 @@ struct PlateScanScreen: View {
     @State private var captured: UIImage? = nil
     @State private var imageBase64: String? = nil
     @State private var result: PlateScanResult? = nil
-    @State private var clarified: Bool? = nil   // nil = unanswered
     @State private var scanTask: Task<Void, Never>? = nil
 
     // User corrections ("that's mutton, not pork") — sent back with the photo
@@ -28,6 +27,12 @@ struct PlateScanScreen: View {
     @State private var appliedCorrections: [String] = []
     @State private var showCorrectionSheet = false
     @State private var correctionText = ""
+
+    // Selected answers to the AI's structured questions (prompt → chosen options).
+    @State private var answers: [String: [String]] = [:]
+    // The item being corrected via the "what is this?" sheet.
+    @State private var editingItem: PlateScanResult.Item? = nil
+    @State private var itemCorrectionText = ""
 
     var body: some View {
         Group {
@@ -57,6 +62,7 @@ struct PlateScanScreen: View {
         .animation(.snappy(duration: 0.25), value: stage)
         .scranScreen()
         .sheet(isPresented: $showCorrectionSheet) { correctionSheet }
+        .sheet(item: $editingItem) { item in itemCorrectionSheet(item) }
     }
 
     // MARK: - Result
@@ -75,13 +81,14 @@ struct PlateScanScreen: View {
                 // Range band, never a single false-precision number.
                 bandCard(r)
 
-                if let q = r.clarifyingQuestion {
-                    clarifyChip(q, impact: r.clarifyingImpact)
-                }
+                if !r.questions.isEmpty { questionsSection(r) }
 
                 Text("ITEMS")
                     .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
                     .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                Text("Tap an item to fix what it is.")
+                    .font(ScranFont.body(12, relativeTo: .caption2))
+                    .foregroundStyle(ScranColor.textMuted)
                 ForEach(r.items) { item in
                     itemRow(item)
                 }
@@ -117,35 +124,137 @@ struct PlateScanScreen: View {
         }
     }
 
-    private func clarifyChip(_ question: String, impact: String?) -> some View {
+    // MARK: - Structured questions (AI-suggested, tappable options)
+
+    private var hasAnswers: Bool { answers.values.contains { !$0.isEmpty } }
+
+    private func questionsSection(_ r: PlateScanResult) -> some View {
         ScranCard(background: ScranColor.estimateDim, border: ScranColor.estimate.opacity(0.35)) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(question)
-                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Sharpen the estimate")
+                    .font(ScranFont.body(16, weight: .bold, relativeTo: .headline))
                     .foregroundStyle(ScranColor.textPrimary)
-                if let impact {
-                    Text("// \(impact)")
-                        .font(ScranFont.mono(12, relativeTo: .caption))
-                        .foregroundStyle(ScranColor.estimate)
+                Text("Answer what you can — it makes the numbers more accurate and won't use another scan.")
+                    .font(ScranFont.body(13, relativeTo: .footnote))
+                    .foregroundStyle(ScranColor.textMuted)
+
+                ForEach(r.questions) { q in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(q.prompt)
+                            .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textPrimary)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(q.options, id: \.self) { opt in
+                                    optionChip(opt, selected: isSelected(q, opt)) { toggle(q, opt) }
+                                }
+                            }
+                        }
+                    }
                 }
-                HStack(spacing: 10) {
-                    chipButton("Yes", selected: clarified == true) { answerClarification(question, true) }
-                    chipButton("No", selected: clarified == false) { answerClarification(question, false) }
+
+                PrimaryButton(title: "Update estimate", systemImage: "arrow.triangle.2.circlepath",
+                              enabled: hasAnswers) {
+                    applyAnswers(r)
                 }
             }
         }
     }
 
-    private func chipButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func optionChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: { Haptics.selection(); action() }) {
             Text(label)
-                .font(ScranFont.body(14, weight: .bold, relativeTo: .body))
-                .padding(.vertical, 9).padding(.horizontal, 22)
+                .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+                .padding(.vertical, 9).padding(.horizontal, 16)
                 .foregroundStyle(selected ? ScranColor.bg : ScranColor.textPrimary)
                 .background(Capsule().fill(selected ? ScranColor.estimate : ScranColor.panel))
                 .overlay(Capsule().strokeBorder(ScranColor.estimate.opacity(0.5), lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
+    }
+
+    private func isSelected(_ q: PlateScanResult.Question, _ opt: String) -> Bool {
+        answers[q.prompt]?.contains(opt) ?? false
+    }
+
+    private func toggle(_ q: PlateScanResult.Question, _ opt: String) {
+        var sel = answers[q.prompt] ?? []
+        if q.multi {
+            if let i = sel.firstIndex(of: opt) { sel.remove(at: i) } else { sel.append(opt) }
+        } else {
+            sel = sel == [opt] ? [] : [opt]
+        }
+        answers[q.prompt] = sel
+    }
+
+    private func applyAnswers(_ r: PlateScanResult) {
+        let parts: [String] = r.questions.compactMap { q in
+            guard let sel = answers[q.prompt], !sel.isEmpty else { return nil }
+            return "\(q.prompt) → \(sel.joined(separator: ", "))"
+        }
+        guard !parts.isEmpty else { return }
+        appliedCorrections.append(contentsOf: parts)
+        rescan()
+    }
+
+    // MARK: - Per-item correction ("what is this?")
+
+    private func itemCorrectionSheet(_ item: PlateScanResult.Item) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("We read this as \"\(item.name)\". What is it really?")
+                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !item.alternatives.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(item.alternatives, id: \.self) { alt in
+                            Button { correctItem(item, to: alt) } label: {
+                                HStack {
+                                    Text(alt).font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                                        .foregroundStyle(ScranColor.textPrimary)
+                                    Spacer()
+                                    Image(systemName: "arrow.right").foregroundStyle(ScranColor.estimate)
+                                }
+                                .padding(14)
+                                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                            }
+                            .buttonStyle(PressableStyle())
+                        }
+                    }
+                }
+                TextField("Or type what it is…", text: $itemCorrectionText)
+                    .font(ScranFont.body(15, relativeTo: .body))
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                PrimaryButton(title: "Recalculate", systemImage: "arrow.triangle.2.circlepath",
+                              enabled: !itemCorrectionText.trimmingCharacters(in: .whitespaces).isEmpty) {
+                    correctItem(item, to: itemCorrectionText.trimmingCharacters(in: .whitespaces))
+                }
+                Spacer()
+            }
+            .padding(20)
+            .scranScreen()
+            .navigationTitle("Fix this item")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { editingItem = nil }.foregroundStyle(ScranColor.textMuted)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .scranAppearance()
+    }
+
+    private func correctItem(_ item: PlateScanResult.Item, to identity: String) {
+        guard !identity.isEmpty else { return }
+        appliedCorrections.append("The item read as \"\(item.name)\" is actually \(identity)")
+        itemCorrectionText = ""
+        editingItem = nil
+        rescan()
     }
 
     /// "Not quite right?" — wrong name, wrong portion, or something missing all
@@ -211,36 +320,53 @@ struct PlateScanScreen: View {
         .scranAppearance()
     }
 
+    private func amountText(_ item: PlateScanResult.Item) -> String {
+        item.kind == .liquid
+            ? "≈ \(ScranFormat.int(item.estimatedGrams)) ml"
+            : "≈ \(ScranFormat.grams(item.estimatedGrams))"
+    }
+
     private func itemRow(_ item: PlateScanResult.Item) -> some View {
-        ScranCard {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
-                        .font(ScranFont.body(16, weight: .semibold, relativeTo: .body))
-                        .foregroundStyle(ScranColor.textPrimary)
-                    Text("≈ \(ScranFormat.grams(item.estimatedGrams)) · \(Int((item.confidence * 100).rounded()))%")
-                        .font(ScranFont.mono(12, relativeTo: .caption))
+        Button { Haptics.tap(); itemCorrectionText = ""; editingItem = item } label: {
+            ScranCard {
+                HStack(spacing: 10) {
+                    Image(systemName: item.kind == .liquid ? "cup.and.saucer.fill" : "fork.knife")
+                        .font(.system(size: 14))
                         .foregroundStyle(ScranColor.textMuted)
+                        .frame(width: 22)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(ScranFont.body(16, weight: .semibold, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textPrimary)
+                            .multilineTextAlignment(.leading)
+                        HStack(spacing: 6) {
+                            Text("\(amountText(item)) · \(Int((item.confidence * 100).rounded()))%")
+                                .font(ScranFont.mono(12, relativeTo: .caption))
+                                .foregroundStyle(ScranColor.textMuted)
+                            if !item.alternatives.isEmpty {
+                                Text("· not right?")
+                                    .font(ScranFont.mono(12, relativeTo: .caption))
+                                    .foregroundStyle(ScranColor.estimate)
+                            }
+                        }
+                    }
+                    Spacer()
+                    Text(ScranFormat.kcalText(item.per100g.kcal * item.estimatedGrams / 100))
+                        .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
+                        .foregroundStyle(ScranColor.estimate)
+                    Image(systemName: "pencil")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(ScranColor.textMuted.opacity(0.6))
+                        .accessibilityHidden(true)
                 }
-                Spacer()
-                Text(ScranFormat.kcalText(item.per100g.kcal * item.estimatedGrams / 100))
-                    .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.estimate)
             }
         }
+        .buttonStyle(PressableStyle())
+        .accessibilityHint("Tap to correct what this item is")
     }
 
     // MARK: - Logic
-
-    /// Answering the clarifying chip feeds the answer back through the same
-    /// re-estimate pipeline as corrections, so the NUMBERS update — not just a
-    /// cosmetic confidence bump.
-    private func answerClarification(_ question: String, _ answer: Bool) {
-        clarified = answer
-        Haptics.selection()
-        appliedCorrections.append("Answering your question \"\(question)\": \(answer ? "yes" : "no")")
-        rescan()
-    }
 
     private func combinedDraft(_ r: PlateScanResult) -> EntryDraft {
         // Merge plate items into a single entry (per-100g blended over total grams).
@@ -289,7 +415,6 @@ struct PlateScanScreen: View {
     /// Refinements don't consume a daily scan (server-enforced).
     private func rescan() {
         guard imageBase64 != nil else { return }
-        clarified = nil   // the clarifying question may change after a correction
         stage = .processing
         runScan(correction: appliedCorrections.joined(separator: "; "))
     }
@@ -314,7 +439,8 @@ struct PlateScanScreen: View {
                 } else {
                     Haptics.success()
                     app.analytics.track(.plateScan(confidence: r.overallConfidence,
-                                                   clarified: r.clarifyingQuestion != nil))
+                                                   clarified: !r.questions.isEmpty))
+                    answers = [:]   // fresh questions arrived; clear stale selections
                     result = r
                     stage = .result
                 }

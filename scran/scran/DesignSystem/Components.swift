@@ -40,13 +40,23 @@ struct ScranCard<Content: View>: View {
     var border: Color = ScranColor.line
     var padding: CGFloat = 20
     var cornerRadius: CGFloat = 20
+    /// Lays a faint dot-grid "graph paper" texture behind the content.
+    var textured: Bool = false
     @ViewBuilder var content: Content
 
     var body: some View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(background))
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(background)
+                    .overlay {
+                        if textured {
+                            DotField()
+                                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                        }
+                    }
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(border, lineWidth: 1)

@@ -44,19 +44,67 @@ struct LabelScanResult: Decodable, Sendable {
 
 struct PlateScanResult: Decodable, Sendable {
     enum Status: String, Decodable, Sendable { case ok, no_food }
+    enum Kind: String, Decodable, Sendable { case solid, liquid }
+
     struct Item: Decodable, Sendable, Identifiable {
         var id: String { name }
         let name: String
-        let estimatedGrams: Double
+        let kind: Kind
+        let estimatedGrams: Double   // grams for solids; ~millilitres for liquids
+        let unit: String             // "g" or "ml" — display only
         let per100g: NutrientBlock
         let confidence: Double
+        /// Other plausible identities when the AI is unsure (tap to correct).
+        let alternatives: [String]
+
+        private enum CodingKeys: String, CodingKey {
+            case name, kind, estimatedGrams, unit, per100g, confidence, alternatives
+        }
+        nonisolated init(from d: Decoder) throws {
+            let c = try d.container(keyedBy: CodingKeys.self)
+            name = try c.decode(String.self, forKey: .name)
+            kind = (try? c.decode(Kind.self, forKey: .kind)) ?? .solid
+            estimatedGrams = try c.decode(Double.self, forKey: .estimatedGrams)
+            per100g = try c.decode(NutrientBlock.self, forKey: .per100g)
+            confidence = (try? c.decode(Double.self, forKey: .confidence)) ?? 0.6
+            unit = (try? c.decode(String.self, forKey: .unit)) ?? (kind == .liquid ? "ml" : "g")
+            alternatives = (try? c.decode([String].self, forKey: .alternatives)) ?? []
+        }
     }
+
+    /// A structured follow-up the AI suggests to sharpen the estimate (e.g. milk
+    /// type for a coffee). `options` are tappable; `multi` allows several.
+    struct Question: Decodable, Sendable, Identifiable {
+        var id: String { prompt }
+        let prompt: String
+        let options: [String]
+        let multi: Bool
+        private enum CodingKeys: String, CodingKey { case prompt, options, multi }
+        nonisolated init(from d: Decoder) throws {
+            let c = try d.container(keyedBy: CodingKeys.self)
+            prompt = try c.decode(String.self, forKey: .prompt)
+            options = (try? c.decode([String].self, forKey: .options)) ?? []
+            multi = (try? c.decode(Bool.self, forKey: .multi)) ?? false
+        }
+    }
+
     let status: Status
     let items: [Item]
     let overallConfidence: Double
-    let clarifyingQuestion: String?
-    let clarifyingImpact: String?
+    let questions: [Question]
     let scansRemaining: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case status, items, overallConfidence, questions, scansRemaining
+    }
+    nonisolated init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        status = try c.decode(Status.self, forKey: .status)
+        items = (try? c.decode([Item].self, forKey: .items)) ?? []
+        overallConfidence = (try? c.decode(Double.self, forKey: .overallConfidence)) ?? 0
+        questions = (try? c.decode([Question].self, forKey: .questions)) ?? []
+        scansRemaining = try? c.decode(Int.self, forKey: .scansRemaining)
+    }
 }
 
 // MARK: - lookup-barcode

@@ -122,7 +122,7 @@ struct TodayView: View {
     // MARK: - Ring
 
     private func ringCard(_ plan: UserPlan) -> some View {
-        ScranCard(background: ScranColor.panel2) {
+        ScranCard(background: ScranColor.panel2, textured: true) {
             VStack(spacing: 22) {
                 CalorieRing(consumed: consumed.kcal, target: plan.dailyTargetKcal)
                 HStack(spacing: 22) {
@@ -173,6 +173,8 @@ struct TodayView: View {
 
     private var emptyState: some View {
         VStack(spacing: 18) {
+            PlateMark(size: 168)
+                .padding(.top, 8)
             Text("Nothing logged yet")
                 .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)

@@ -173,6 +173,127 @@ final class SyncQueue {
         }
     }
 
+    // MARK: - Pull / restore (server -> local)
+
+    /// Hydrate local SwiftData from the account's server rows. Used after sign-in
+    /// and on bootstrap for a restored account, so data follows the user across
+    /// devices. Insert-if-absent (local stays the source of truth for rows it
+    /// already has). RLS scopes every query to the signed-in user.
+    func pullAll(context: ModelContext) async {
+        guard (try? await SupabaseClient.shared.ensureSession()) != nil else { return }
+        await pullPlans(context: context)
+        await pullFoodEntries(context: context)
+        await pullSavedMeals(context: context)
+        await pullWeights(context: context)
+        try? context.save()
+        lastSyncedAt = .now
+    }
+
+    private func parseISO(_ s: String?) -> Date? {
+        guard let s else { return nil }
+        if let d = iso.date(from: s) { return d }
+        let plain = ISO8601DateFormatter(); plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: s)
+    }
+
+    private func pullPlans(context: ModelContext) async {
+        struct Row: Decodable {
+            let id: String
+            let height_cm: Double; let weight_kg: Double; let date_of_birth: String
+            let biological_sex: String; let activity_level: String; let weekly_workouts: Int
+            let goal: String; let weekly_rate_kg: Double
+            let bmr: Double; let tdee: Double; let daily_target_kcal: Double
+            let protein_target_g: Double; let carbs_target_g: Double; let fat_target_g: Double
+            let sat_fat_limit_g: Double; let fibre_target_g: Double
+            let explanation: String?; let explanation_version: Int?
+            let created_at: String?; let updated_at: String?
+        }
+        guard let data = try? await SupabaseClient.shared.select(table: "plans", query: [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "deleted_at", value: "is.null"),
+        ]), let rows = try? JSONDecoder().decode([Row].self, from: data) else { return }
+
+        let existing = Set(((try? context.fetch(FetchDescriptor<UserPlan>())) ?? []).map(\.id))
+        for r in rows {
+            guard let id = UUID(uuidString: r.id), !existing.contains(id),
+                  let dob = dayFormatter.date(from: r.date_of_birth) else { continue }
+            context.insert(UserPlan(
+                id: id, heightCm: r.height_cm, weightKg: r.weight_kg, dateOfBirth: dob,
+                biologicalSex: r.biological_sex, activityLevel: r.activity_level,
+                weeklyWorkouts: r.weekly_workouts, goal: r.goal, weeklyRateKg: r.weekly_rate_kg,
+                bmr: r.bmr, tdee: r.tdee, dailyTargetKcal: r.daily_target_kcal,
+                proteinTargetG: r.protein_target_g, carbsTargetG: r.carbs_target_g,
+                fatTargetG: r.fat_target_g, satFatLimitG: r.sat_fat_limit_g,
+                fibreTargetG: r.fibre_target_g, explanation: r.explanation,
+                explanationVersion: r.explanation_version ?? 0,
+                createdAt: parseISO(r.created_at) ?? .now, updatedAt: parseISO(r.updated_at) ?? .now,
+                syncState: SyncState.synced.rawValue))
+        }
+    }
+
+    private func pullFoodEntries(context: ModelContext) async {
+        struct Row: Decodable {
+            let id: String; let logged_at: String; let name: String; let brand: String?
+            let source: String; let confidence: Double?; let barcode: String?
+            let per100g: NutrientBlock; let serving_size_g: Double; let quantity: Double
+            let photo_remote_path: String?; let clarifications: [String]?
+            let created_at: String?; let updated_at: String?
+        }
+        guard let data = try? await SupabaseClient.shared.select(table: "food_entries", query: [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "deleted_at", value: "is.null"),
+        ]), let rows = try? JSONDecoder().decode([Row].self, from: data) else { return }
+
+        let existing = Set(((try? context.fetch(FetchDescriptor<FoodEntry>())) ?? []).map(\.id))
+        for r in rows {
+            guard let id = UUID(uuidString: r.id), !existing.contains(id) else { continue }
+            context.insert(FoodEntry(
+                id: id, loggedAt: parseISO(r.logged_at) ?? .now, name: r.name, brand: r.brand,
+                source: r.source, confidence: r.confidence, barcode: r.barcode,
+                per100g: r.per100g, servingSizeG: r.serving_size_g, quantity: r.quantity,
+                photoLocalPath: nil, photoRemotePath: r.photo_remote_path,
+                clarifications: r.clarifications ?? [], syncState: SyncState.synced.rawValue,
+                createdAt: parseISO(r.created_at) ?? .now, updatedAt: parseISO(r.updated_at) ?? .now))
+        }
+    }
+
+    private func pullSavedMeals(context: ModelContext) async {
+        struct Row: Decodable {
+            let id: String; let name: String; let entries: [SavedMealItem]?
+            let times_logged: Int?; let last_logged_at: String?
+            let created_at: String?; let updated_at: String?
+        }
+        guard let data = try? await SupabaseClient.shared.select(table: "saved_meals", query: [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "deleted_at", value: "is.null"),
+        ]), let rows = try? JSONDecoder().decode([Row].self, from: data) else { return }
+
+        let existing = Set(((try? context.fetch(FetchDescriptor<SavedMeal>())) ?? []).map(\.id))
+        for r in rows {
+            guard let id = UUID(uuidString: r.id), !existing.contains(id) else { continue }
+            context.insert(SavedMeal(
+                id: id, name: r.name, items: r.entries ?? [], timesLogged: r.times_logged ?? 0,
+                lastLoggedAt: parseISO(r.last_logged_at), syncState: SyncState.synced.rawValue,
+                createdAt: parseISO(r.created_at) ?? .now, updatedAt: parseISO(r.updated_at) ?? .now))
+        }
+    }
+
+    private func pullWeights(context: ModelContext) async {
+        struct Row: Decodable { let id: String; let date: String; let weight_kg: Double }
+        guard let data = try? await SupabaseClient.shared.select(table: "weight_entries", query: [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "deleted_at", value: "is.null"),
+        ]), let rows = try? JSONDecoder().decode([Row].self, from: data) else { return }
+
+        let existing = Set(((try? context.fetch(FetchDescriptor<WeightEntry>())) ?? []).map(\.id))
+        for r in rows {
+            guard let id = UUID(uuidString: r.id), !existing.contains(id),
+                  let date = dayFormatter.date(from: r.date) else { continue }
+            context.insert(WeightEntry(id: id, date: date, weightKg: r.weight_kg,
+                                       syncState: SyncState.synced.rawValue))
+        }
+    }
+
     // MARK: - Helpers
 
     static func nutrientDict(_ n: NutrientBlock) -> [String: Any] {

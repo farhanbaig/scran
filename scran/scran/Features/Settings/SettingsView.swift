@@ -21,6 +21,8 @@ struct SettingsView: View {
     @State private var diagnosticId = "—"
     @State private var exportFile: ExportFile? = nil
     @State private var confirmDelete = false
+    @State private var confirmSignOut = false
+    @State private var showUpgrade = false
     @State private var deleting = false
     @AppStorage(ScranAppearance.storageKey) private var appearanceRaw = ScranAppearance.system.rawValue
     @AppStorage("scran.healthConnected") private var healthConnected = false
@@ -36,6 +38,7 @@ struct SettingsView: View {
                 ScranHeader(title: "Settings",
                             subtitle: "Your plan, your data, your account")
                     .padding(.bottom, 4)
+                accountSection
                 if let plan { planSection(plan) }
                 if HealthKitService.isSupported { healthSection }
                 appearanceSection
@@ -59,6 +62,12 @@ struct SettingsView: View {
             ShareSheet(items: [file.url])
         }
         #endif
+        .alert("Sign out?", isPresented: $confirmSignOut) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sign out", role: .destructive) { Task { await app.signOut(context: context) } }
+        } message: {
+            Text("Your data is saved to your account and will be here when you sign back in on any device.")
+        }
         .alert("Delete account?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
             Button("Delete everything", role: .destructive) { Task { await deleteAccount() } }
@@ -90,6 +99,51 @@ struct SettingsView: View {
                     PlanEditView(plan: plan)
                 } label: { rowButtonLabel("Edit plan", "slider.horizontal.3") }
             }
+        }
+    }
+
+    // MARK: - Account
+
+    private var accountSection: some View {
+        SettingsCard(title: "Account") {
+            HStack(spacing: 12) {
+                Image(systemName: app.isAnonymous ? "person.crop.circle.badge.exclamationmark" : "person.crop.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(app.isAnonymous ? ScranColor.estimate : ScranColor.verified)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(app.isAnonymous ? "Guest" : (app.email ?? "Signed in"))
+                        .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                        .foregroundStyle(ScranColor.textPrimary).lineLimit(1)
+                    Text(app.isAnonymous ? "On this device only — not synced" : "Synced to your account")
+                        .font(ScranFont.body(12, relativeTo: .caption))
+                        .foregroundStyle(ScranColor.textMuted)
+                }
+                Spacer()
+            }
+            if app.isAnonymous {
+                PrimaryButton(title: "Create an account to sync", systemImage: "arrow.triangle.2.circlepath") {
+                    showUpgrade = true
+                }
+            } else {
+                Button { confirmSignOut = true } label: {
+                    HStack {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Text("Sign out").font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                        Spacer()
+                    }
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .padding(.vertical, 12).padding(.horizontal, 14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.panel2))
+                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.lineStrong))
+                }
+            }
+        }
+        .sheet(isPresented: $showUpgrade) {
+            NavigationStack {
+                AuthView(isUpgrade: true, onComplete: { showUpgrade = false })
+            }
+            .scranAppearance()
         }
     }
 
@@ -317,6 +371,9 @@ struct SettingsView: View {
         do {
             try await AccountService.deleteAccount(context: context)
             Haptics.success()
+            // Return to the auth wall — the account and its data are gone.
+            app.email = nil
+            app.isAuthenticated = false
         } catch {
             app.crash.capture(error, context: ["action": "delete_account"])
         }

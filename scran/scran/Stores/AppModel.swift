@@ -27,6 +27,13 @@ final class AppModel {
     var paywallTrigger: String?          // non-nil => present paywall with this trigger
     var didBootstrap = false
 
+    // Account state. A session may be a real account or an anonymous (this-device-
+    // only) guest. `isAuthenticated` = "has any usable session".
+    var authResolved = false             // bootstrap has finished checking for a session
+    var isAuthenticated = false          // a session exists (real or anonymous)
+    var isAnonymous = false              // the session is an anonymous guest
+    var email: String?
+
     var isPro: Bool { entitlements.isPro }
     var isOnline: Bool { network.isOnline }
 
@@ -38,8 +45,8 @@ final class AppModel {
         self.crash = crash ?? ConsoleCrashReporter()
     }
 
-    /// One-time startup: crash reporting, network, anonymous session, services,
-    /// quota, and a first sync.
+    /// One-time startup: crash reporting, network, restore a stored account
+    /// session (no anonymous fallback), then hydrate from server + sync.
     func bootstrap(context: ModelContext) async {
         guard !didBootstrap else { return }
         didBootstrap = true
@@ -47,18 +54,65 @@ final class AppModel {
         crash.bootstrap()
         network.start()
 
-        do {
-            let session = try await SupabaseClient.shared.ensureSession()
-            analytics.configure(userId: session.userId)
-            await entitlements.configure(appUserId: session.userId)
-            crash.breadcrumb("session ready")
-        } catch {
-            crash.capture(error, context: ["phase": "bootstrap"])
+        let restored = await SupabaseClient.shared.restoreSession()
+        if let session = restored {
+            // A session exists (real account or anonymous guest).
+            await activateSession(session, context: context, pull: !session.isAnonymous)
+        } else if await SupabaseClient.shared.hasStoredRefreshToken() {
+            // Couldn't reach the server (offline/transient) but a session is
+            // stored — show the app from local data; refresh on next foreground.
+            // NOTE: we never wipe local SwiftData here, so no data is lost offline.
+            isAuthenticated = true
+        } else {
+            isAuthenticated = false
         }
+        authResolved = true
+    }
 
+    /// Wire up services for a session (real or anonymous) and optionally pull data.
+    private func activateSession(_ session: SupabaseSession, context: ModelContext, pull: Bool) async {
+        analytics.configure(userId: session.userId)
+        await entitlements.configure(appUserId: session.userId)
+        crash.breadcrumb("session ready")
+        email = session.email
+        isAnonymous = session.isAnonymous
+        isAuthenticated = true
         quota.isPro = entitlements.isPro
         await quota.refresh()
+        if pull { await sync.pullAll(context: context) }
         await sync.syncPending(context: context)
+    }
+
+    /// Continue as an anonymous guest (no account; this device only).
+    func continueAnonymously(context: ModelContext) async {
+        do {
+            let s = try await SupabaseClient.shared.continueAnonymously()
+            await activateSession(s, context: context, pull: false)
+            analytics.track(.signedUp(method: "anonymous"))
+        } catch {
+            crash.capture(error, context: ["phase": "anonymous"])
+        }
+    }
+
+    /// Called by the auth screen after a successful sign-in / sign-up session.
+    func completeSignIn(_ session: SupabaseSession, context: ModelContext) async {
+        await activateSession(session, context: context, pull: true)
+        authResolved = true
+    }
+
+    /// Sign out: revoke the session and wipe all local data so the next account
+    /// starts clean. Returns the app to the auth wall.
+    func signOut(context: ModelContext) async {
+        await SupabaseClient.shared.signOut()
+        try? context.delete(model: FoodEntry.self)
+        try? context.delete(model: SavedMeal.self)
+        try? context.delete(model: WeightEntry.self)
+        try? context.delete(model: UserPlan.self)
+        try? context.save()
+        email = nil
+        isAnonymous = false
+        isAuthenticated = false
+        analytics.track(.signedOut)
     }
 
     /// Call when the app returns to the foreground.

@@ -129,7 +129,7 @@ struct ProgressTabView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 ScranHeader(title: "Progress",
                             subtitle: weeklyTrend ?? "Weigh in weekly to see your trend")
@@ -152,7 +152,7 @@ struct ProgressTabView: View {
     }
 
     private var currentCard: some View {
-        ScranCard(background: ScranColor.panel2) {
+        ScranCard(background: ScranColor.panel2, textured: true) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("CURRENT WEIGHT")
                     .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))

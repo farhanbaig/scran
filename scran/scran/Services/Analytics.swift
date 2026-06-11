@@ -28,6 +28,9 @@ enum AnalyticsEvent {
     case quotaHit
     case exportCSV
     case supportOpened
+    case signedUp(method: String)
+    case signedIn(method: String)
+    case signedOut
 
     var name: String {
         switch self {
@@ -49,6 +52,9 @@ enum AnalyticsEvent {
         case .quotaHit:             return "quota_hit"
         case .exportCSV:            return "export_csv"
         case .supportOpened:        return "support_opened"
+        case .signedUp:             return "signed_up"
+        case .signedIn:             return "signed_in"
+        case .signedOut:            return "signed_out"
         }
     }
 
@@ -63,6 +69,8 @@ enum AnalyticsEvent {
         case .entryLogged(let source):               return ["source": source]
         case .paywallViewed(let trigger):            return ["trigger": trigger]
         case .purchase(let product):                 return ["product": product]
+        case .signedUp(let method):                  return ["method": method]
+        case .signedIn(let method):                  return ["method": method]
         default:                                     return [:]
         }
     }

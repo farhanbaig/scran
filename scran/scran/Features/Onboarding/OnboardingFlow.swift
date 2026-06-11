@@ -21,6 +21,7 @@ enum OnboardingStep: Hashable {
     case motivations, blockers, diet
     case triedApps, worksPro, referral
     case trust, notifications
+    case account
     case loading, reveal
 }
 
@@ -33,6 +34,7 @@ struct OnboardingFlow: View {
     @State private var revealPlan: UserPlan?
     @State private var healthImporting = false
     @State private var healthImported = false
+    @State private var showSignIn = false
 
     /// Ordered funnel. Rate step is conditional on a non-maintain goal.
     private var steps: [OnboardingStep] {
@@ -41,7 +43,11 @@ struct OnboardingFlow: View {
         s += [.sex, .dob, .height, .weight, .activity, .workouts, .goal]
         if draft.goal.usesRate { s.append(.rate) }
         s += [.socialProof, .motivations, .blockers, .diet, .triedApps, .worksPro,
-              .referral, .trust, .notifications, .loading, .reveal]
+              .referral, .trust, .notifications]
+        // Ask for an account at the end — after the questions, before we build
+        // and save the plan. Skipped if already signed in.
+        if !app.isAuthenticated { s.append(.account) }
+        s += [.loading, .reveal]
         return s
     }
 
@@ -57,6 +63,12 @@ struct OnboardingFlow: View {
         content
             .animation(.snappy(duration: 0.25), value: step)
             .onAppear { app.analytics.track(.onboardingStarted) }
+            .fullScreenCover(isPresented: $showSignIn) {
+                AuthView(startInSignIn: true,
+                         onComplete: { showSignIn = false },
+                         onBack: { showSignIn = false })
+                    .scranAppearance()
+            }
     }
 
     // MARK: - Routing
@@ -91,15 +103,29 @@ struct OnboardingFlow: View {
         @Bindable var d = draft
         switch step {
         case .welcome:
-            WelcomeScreen { advance() }
+            WelcomeScreen(onStart: { advance() }, onSignIn: { showSignIn = true })
 
         case .health:
-            OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "Start with Apple Health?",
-                               subtitle: "Import your height, weight and age so you can skip the typing. Read-only — Scran never writes anything back.",
-                               ctaTitle: healthImported ? "Continue" : "Enter it manually",
-                               onContinue: advance) {
-                healthConnectCard(d)
+            OnboardingScaffold(
+                progress: progress, onBack: backAction,
+                title: "Connect to Apple Health",
+                subtitle: "Sync your activity, sleep and weight between Scran and the Health app — read-only, for the most complete picture.",
+                ctaTitle: healthImported ? "Continue" : (healthImporting ? "Connecting…" : "Connect Apple Health"),
+                ctaEnabled: !healthImporting,
+                secondaryTitle: "Skip",
+                onSecondary: advance,
+                onContinue: {
+                    if healthImported { advance() }
+                    else { Task { await importHealth(into: d) } }
+                }) {
+                VStack(spacing: 20) {
+                    HealthSyncArt().frame(maxWidth: .infinity)
+                    if healthImported {
+                        Label("Imported \(importedSummary(d))", systemImage: "checkmark.circle.fill")
+                            .font(ScranFont.body(14, weight: .semibold, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.verified)
+                    }
+                }
             }
 
         case .sex:
@@ -253,8 +279,8 @@ struct OnboardingFlow: View {
                               icon: "checkmark.seal.fill",
                               title: "Thank you for trusting us",
                               subtitle: "Now let's build your plan — with every number sourced and the maths on screen.",
-                              badge: "No account needed",
-                              badgeDetail: "You're already signed in anonymously. Your log stays yours, exportable any time.",
+                              badge: "Yours, everywhere",
+                              badgeDetail: "Next you'll create an account so your plan and log sync to any device — exportable any time.",
                               onContinue: advance)
 
         case .notifications:
@@ -266,6 +292,13 @@ struct OnboardingFlow: View {
                 primaryTitle: "Enable reminders",
                 onPrimary: { await OnboardingPermissions.requestNotifications(); advance() },
                 onSkip: advance)
+
+        case .account:
+            // The questions are done — create an account to build & save the plan
+            // so it follows you to any device. Returning users can sign in here too.
+            AuthView(allowAnonymous: true,
+                     onComplete: { withAnimation { step = .loading } },
+                     onBack: { back() })
 
         case .loading:
             HonestPlanLoadingScreen(
@@ -295,52 +328,6 @@ struct OnboardingFlow: View {
     }
 
     // MARK: - Apple Health step
-
-    @ViewBuilder private func healthConnectCard(_ d: OnboardingDraft) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button {
-                Task { await importHealth(into: d) }
-            } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(healthImported ? ScranColor.verified : ScranColor.error)
-                        .frame(width: 44, height: 44)
-                        .background(Circle().fill(healthImported ? ScranColor.verifiedDim : ScranColor.panel2))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(healthImported ? "Imported from Apple Health" : "Connect Apple Health")
-                            .font(ScranFont.body(16, weight: .semibold, relativeTo: .body))
-                            .foregroundStyle(ScranColor.textPrimary)
-                        Text(healthImported ? importedSummary(d) : "Height, weight, age & sex")
-                            .font(ScranFont.body(13, relativeTo: .footnote))
-                            .foregroundStyle(ScranColor.textMuted)
-                    }
-                    Spacer(minLength: 8)
-                    if healthImporting {
-                        ProgressView().tint(ScranColor.verified)
-                    } else {
-                        Image(systemName: healthImported ? "checkmark.circle.fill" : "chevron.right")
-                            .font(.system(size: healthImported ? 22 : 15, weight: .semibold))
-                            .foregroundStyle(healthImported ? ScranColor.verified : ScranColor.textMuted)
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(healthImported ? ScranColor.verifiedDim : ScranColor.panel))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(healthImported ? ScranColor.verified.opacity(0.6) : ScranColor.line,
-                                  lineWidth: healthImported ? 1.5 : 1))
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(healthImporting || healthImported)
-
-            Text("// read-only — your data stays on your phone")
-                .font(ScranFont.mono(11, relativeTo: .caption2))
-                .foregroundStyle(ScranColor.textMuted)
-        }
-    }
 
     private func importedSummary(_ d: OnboardingDraft) -> String {
         var parts: [String] = []
@@ -401,6 +388,7 @@ struct OnboardingFlow: View {
 
 private struct WelcomeScreen: View {
     let onStart: () -> Void
+    var onSignIn: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -438,10 +426,16 @@ private struct WelcomeScreen: View {
 
             PrimaryButton(title: "Get started", systemImage: "arrow.right", action: onStart)
                 .padding(.horizontal, 20)
+            Button { Haptics.selection(); onSignIn() } label: {
+                Text("Already have an account? Sign in")
+                    .font(ScranFont.body(14, weight: .semibold, relativeTo: .footnote))
+                    .foregroundStyle(ScranColor.verified)
+            }
+            .padding(.top, 14)
             Text("// no card required · free forever tier")
                 .font(ScranFont.mono(12, relativeTo: .caption))
                 .foregroundStyle(ScranColor.textMuted)
-                .padding(.top, 12).padding(.bottom, 8)
+                .padding(.top, 10).padding(.bottom, 8)
         }
         .scranScreen()
     }
