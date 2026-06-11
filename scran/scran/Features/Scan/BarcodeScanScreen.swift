@@ -15,7 +15,7 @@ struct BarcodeScanScreen: View {
     @Environment(AppModel.self) private var app
     let coordinator: LogCoordinator
 
-    private enum Stage: Equatable { case scanning, looking, notFound(String) }
+    private enum Stage: Equatable { case scanning, looking, notFound(String), error(String) }
     @State private var stage: Stage = .scanning
     @State private var torchOn = false
     @State private var lastBarcode: String? = nil
@@ -44,6 +44,8 @@ struct BarcodeScanScreen: View {
                     hint("Looking it up…")
                 case .notFound(let code):
                     fallbackCard(code)
+                case .error(let message):
+                    errorCard(message)
                 }
             }
             .padding(20)
@@ -101,6 +103,30 @@ struct BarcodeScanScreen: View {
         .padding(.bottom, 20)
     }
 
+    private func errorCard(_ message: String) -> some View {
+        ScranCard(background: ScranColor.panel2, border: ScranColor.error.opacity(0.35)) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(ScranColor.error)
+                    Text("Couldn't check the database")
+                        .font(ScranFont.body(18, weight: .bold, relativeTo: .headline))
+                        .foregroundStyle(ScranColor.textPrimary)
+                }
+                Text(message)
+                    .font(ScranFont.body(15, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textMuted)
+                PrimaryButton(title: "Try again", systemImage: "arrow.clockwise") {
+                    lastBarcode = nil; stage = .scanning
+                }
+                Button("Photograph the label instead") { coordinator.showLabelCamera() }
+                    .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textMuted)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.bottom, 20)
+    }
+
     private var unsupported: some View {
         VStack(spacing: 16) {
             Image(systemName: "barcode.viewfinder").font(.system(size: 40))
@@ -133,8 +159,11 @@ struct BarcodeScanScreen: View {
                 }
             } catch {
                 app.crash.capture(error, context: ["fn": "lookup-barcode"])
-                Haptics.warning()
-                stage = .notFound(payload)
+                Haptics.error()
+                // A genuine failure (no session, network, server) — not a DB miss.
+                stage = .error(app.isOnline
+                    ? "We couldn't reach the food database. Check you're signed in and online, then try again."
+                    : "You're offline. Barcode lookup needs a connection — your manual and saved-meal logging still work.")
             }
         }
     }

@@ -44,8 +44,11 @@ struct BarcodeScannerRepresentable: UIViewControllerRepresentable {
     private func setTorch(_ on: Bool) {
         guard let device = AVCaptureDevice.default(for: .video), device.hasTorch else { return }
         try? device.lockForConfiguration()
-        try? device.setTorchModeOn(level: on ? 1.0 : 0.0)
-        if !on { device.torchMode = .off }
+        if on {
+            try? device.setTorchModeOn(level: 1.0)
+        } else {
+            device.torchMode = .off
+        }
         device.unlockForConfiguration()
     }
 
@@ -153,6 +156,7 @@ struct CameraPreview: UIViewRepresentable {
     final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var videoPreviewLayer: AVCaptureVideoPreviewLayer {
+            // Safe because layerClass returns AVCaptureVideoPreviewLayer
             layer as! AVCaptureVideoPreviewLayer
         }
     }
