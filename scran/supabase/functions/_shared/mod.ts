@@ -91,6 +91,10 @@ export function cleanBase64(input: string): string {
 // budget (this took scan-plate down). Override per-function via env if needed.
 export const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
 
+// Last-resort model for when the primary is overloaded (Gemini 503s come in
+// per-model bursts, so a different model usually clears them). Also pinned.
+export const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash-lite";
+
 export class GeminiError extends Error {
   status: number;
   constructor(status: number, message: string) { super(message); this.status = status; }
@@ -110,17 +114,19 @@ function candidateText(body: Record<string, unknown>): string {
 }
 
 // Vision call returning raw model text. Thinking is disabled for speed; if the
-// model rejects that parameter we drop it and continue. Retries once on 5xx /
-// network / timeout (never on other 4xx). Per-attempt hard timeout keeps two
-// attempts inside the app's 45s client window. `userText` adds an optional text
-// part next to the image (used for plate-scan corrections).
+// model rejects that parameter we drop it and continue. Retries on 5xx /
+// network / timeout (never on other 4xx) with growing backoff, switching to the
+// fallback model for the final attempt — Gemini overload (503) arrives in
+// per-model bursts, so back-to-back retries on one model tend to all fail.
+// An overall deadline keeps the whole call inside the app's 45s client window.
+// `userText` adds an optional text part next to the image (plate corrections).
 export async function callGeminiJSON(
   model: string, systemPrompt: string, imageBase64: string,
   userText: string | null = null, perAttemptMs = 18_000,
 ): Promise<string> {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) throw new GeminiError(0, "GEMINI_API_KEY not configured");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+  const fallback = Deno.env.get("GEMINI_FALLBACK_MODEL") ?? GEMINI_FALLBACK_MODEL;
   const userParts: unknown[] = [{ inlineData: { mimeType: "image/jpeg", data: imageBase64 } }];
   if (userText) userParts.push({ text: userText });
   const payload = (disableThinking: boolean) => ({
@@ -134,12 +140,21 @@ export async function callGeminiJSON(
     },
   });
 
+  // Primary twice, then the fallback model. Overall deadline 40s < app's 45s.
+  const models = [model, model, fallback === model ? model : fallback];
+  const backoffMs = [400, 1200];
+  const deadline = Date.now() + 40_000;
+
   let lastStatus = 0;
   let lastErr = "unknown";
   let disableThinking = true;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < models.length; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining < 3_000) break;
+    const m = models[attempt];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), perAttemptMs);
+    const timer = setTimeout(() => controller.abort(), Math.min(perAttemptMs, remaining));
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -157,7 +172,7 @@ export async function callGeminiJSON(
         lastErr = `empty candidate (finishReason=${finish}): ` + JSON.stringify(body).slice(0, 160);
       } else {
         lastStatus = res.status;
-        lastErr = (await res.text()).slice(0, 220);
+        lastErr = `[${m}] ` + (await res.text()).slice(0, 220);
         // Model doesn't accept thinkingConfig — drop it and retry immediately.
         if (res.status === 400 && disableThinking && lastErr.toLowerCase().includes("thinking")) {
           disableThinking = false;
@@ -168,11 +183,13 @@ export async function callGeminiJSON(
         if (res.status >= 400 && res.status < 500 && res.status !== 429) break;
       }
     } catch (e) {
-      lastErr = String(e);
+      lastErr = `[${m}] ` + String(e);
     } finally {
       clearTimeout(timer);
     }
-    if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
+    if (attempt < models.length - 1) {
+      await new Promise((r) => setTimeout(r, backoffMs[Math.min(attempt, backoffMs.length - 1)]));
+    }
   }
   throw new GeminiError(lastStatus, lastErr);
 }

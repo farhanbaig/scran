@@ -41,6 +41,23 @@ struct PaywallView: View {
                     .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
                     .frame(maxWidth: .infinity).padding(.top, 4)
+
+                // Required on subscription screens (App Review 3.1.2): renewal
+                // terms plus tappable Terms of Use and Privacy Policy links.
+                VStack(spacing: 6) {
+                    Text("Subscriptions renew automatically until cancelled. Manage or cancel any time in your App Store account settings.")
+                        .font(ScranFont.body(11, relativeTo: .caption2))
+                        .foregroundStyle(ScranColor.textMuted)
+                        .multilineTextAlignment(.center)
+                    HStack(spacing: 16) {
+                        Link("Terms of Use", destination: ScranConfig.termsURL)
+                        Link("Privacy Policy", destination: ScranConfig.privacyURL)
+                    }
+                    .font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
+                    .tint(ScranColor.textMuted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
             }
             .padding(20).padding(.bottom, 30)
         }
@@ -61,7 +78,7 @@ struct PaywallView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Eyebrow(text: "Scran Pro", color: ScranColor.verified, ruleColor: ScranColor.verified)
+            Eyebrow(text: "Clearo Pro", color: ScranColor.verified, ruleColor: ScranColor.verified)
             Text("Unlimited scans. Same honest numbers.")
                 .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)

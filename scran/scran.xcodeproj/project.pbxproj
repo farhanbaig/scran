@@ -401,8 +401,9 @@
 				DEVELOPMENT_TEAM = L3779VFYN8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Scran uses the camera to scan barcodes and photograph nutrition labels and plates of food.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Scran reads your weight, height, age and activity from Apple Health to set up your plan and keep it accurate.";
+				INFOPLIST_KEY_CFBundleDisplayName = Clearo;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Clearo uses the camera to scan barcodes and photograph nutrition labels and plates of food.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Clearo reads your weight, height, age and activity from Apple Health to set up your plan and keep it accurate.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -413,7 +414,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wiresidestudios.scran;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wiresidestudios.clearoapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -436,8 +437,9 @@
 				DEVELOPMENT_TEAM = L3779VFYN8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Scran uses the camera to scan barcodes and photograph nutrition labels and plates of food.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Scran reads your weight, height, age and activity from Apple Health to set up your plan and keep it accurate.";
+				INFOPLIST_KEY_CFBundleDisplayName = Clearo;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Clearo uses the camera to scan barcodes and photograph nutrition labels and plates of food.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Clearo reads your weight, height, age and activity from Apple Health to set up your plan and keep it accurate.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -448,7 +450,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wiresidestudios.scran;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wiresidestudios.clearoapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

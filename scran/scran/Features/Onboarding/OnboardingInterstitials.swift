@@ -184,7 +184,7 @@ struct SocialProofScreen: View {
         OnboardingScaffold(
             progress: progress, onBack: onBack,
             title: "We read the one-star reviews so you don't live them",
-            subtitle: "Scran is built against the four failures of the big AI calorie apps. Each one is a design rule here.",
+            subtitle: "Clearo is built against the four failures of the big AI calorie apps. Each one is a design rule here.",
             ctaTitle: "Continue", onContinue: onContinue
         ) {
             VStack(spacing: 12) {

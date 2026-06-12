@@ -17,7 +17,6 @@ struct PlanRevealView: View {
 
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
-    @Environment(ChromeVisibility.self) private var chrome: ChromeVisibility?
     @State private var explanation: String? = nil
     @State private var loadingExplanation = true
 
@@ -50,8 +49,9 @@ struct PlanRevealView: View {
         .navigationTitle("Your plan")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadExplanation() }
-        .onAppear { chrome?.tabBarHidden = true }
-        .onDisappear { chrome?.tabBarHidden = false }
+        // Pinned CTA needs the full bottom edge; harmless outside a TabView
+        // (e.g. during onboarding).
+        .toolbar(.hidden, for: .tabBar)
     }
 
     // MARK: - Hero

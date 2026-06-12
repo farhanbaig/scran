@@ -50,7 +50,7 @@ struct SettingsView: View {
                 footer
             }
             .padding(20)
-            .padding(.bottom, ScranTabBar.contentHeight + 16)
+            .padding(.bottom, 16)
         }
         .scranScreen()
         .toolbar(.hidden, for: .navigationBar)
@@ -230,7 +230,7 @@ struct SettingsView: View {
     private var subscriptionSection: some View {
         SettingsCard(title: "Subscription") {
             HStack {
-                Text(app.isPro ? "Scran Pro" : "Free plan")
+                Text(app.isPro ? "Clearo Pro" : "Free plan")
                     .font(ScranFont.body(16, weight: .bold, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
                 Spacer()
@@ -295,7 +295,7 @@ struct SettingsView: View {
 
     private var footer: some View {
         VStack(spacing: 4) {
-            Text("Scran · built in Kent by Wireside Studios Ltd")
+            Text("Clearo · built in Kent by Wireside Studios Ltd")
                 .font(ScranFont.mono(11, relativeTo: .caption2))
             Text("v\(Bundle.main.appVersion)")
                 .font(ScranFont.mono(11, relativeTo: .caption2))
@@ -356,8 +356,8 @@ struct SettingsView: View {
 
     private func openSupport() {
         app.analytics.track(.supportOpened)
-        let subject = "Scran support".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let body = "\n\n—\nDiagnostic ID: \(diagnosticId)\nApp: Scran v\(Bundle.main.appVersion)"
+        let subject = "Clearo support".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let body = "\n\n—\nDiagnostic ID: \(diagnosticId)\nApp: Clearo v\(Bundle.main.appVersion)"
             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         #if canImport(UIKit)
         if let url = URL(string: "mailto:\(ScranConfig.supportEmail)?subject=\(subject)&body=\(body)") {

@@ -25,8 +25,22 @@ struct DraftBox: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
+/// Boxes the drafts of a multi-item plate scan (one draft per detected item)
+/// plus the shared photo, for the itemised review screen.
+struct MultiDraftBox: Identifiable, Hashable {
+    let id = UUID()
+    let drafts: [EntryDraft]
+    let confidence: Double
+    #if canImport(UIKit)
+    let photo: UIImage?
+    #endif
+    static func == (lhs: MultiDraftBox, rhs: MultiDraftBox) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
 enum ScanDestination: Hashable {
     case editor(DraftBox)
+    case multiEditor(MultiDraftBox)
     case labelCamera
 }
 
@@ -40,6 +54,7 @@ final class LogCoordinator {
     func cancel() { close() }
     func finished() { close() }
     func showEditor(_ draft: EntryDraft) { path.append(.editor(DraftBox(draft: draft))) }
+    func showMultiEditor(_ box: MultiDraftBox) { path.append(.multiEditor(box)) }
     func showLabelCamera() { path.append(.labelCamera) }
     func showManualEntry() { path.append(.editor(DraftBox(draft: EntryDraft()))) }
 }
@@ -62,6 +77,8 @@ struct LogFlowView: View {
                     switch dest {
                     case .editor(let box):
                         EntryEditorView(draft: box.draft, onLogged: { coordinator.finished() })
+                    case .multiEditor(let box):
+                        MultiEntryReviewView(box: box, onLogged: { coordinator.finished() })
                     case .labelCamera:
                         #if canImport(UIKit)
                         LabelScanScreen(coordinator: coordinator)

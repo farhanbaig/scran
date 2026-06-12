@@ -18,7 +18,7 @@ enum OnboardingStep: Hashable {
     case activity, workouts
     case goal, rate
     case socialProof
-    case motivations, blockers, diet
+    case motivations, blockers, diet, focusAreas
     case triedApps, worksPro, referral
     case trust, notifications
     case account
@@ -42,8 +42,8 @@ struct OnboardingFlow: View {
         if HealthKitService.isSupported { s.append(.health) }
         s += [.sex, .dob, .height, .weight, .activity, .workouts, .goal]
         if draft.goal.usesRate { s.append(.rate) }
-        s += [.socialProof, .motivations, .blockers, .diet, .triedApps, .worksPro,
-              .referral, .trust, .notifications]
+        s += [.socialProof, .motivations, .blockers, .diet, .focusAreas, .triedApps,
+              .worksPro, .referral, .trust, .notifications]
         // Ask for an account at the end — after the questions, before we build
         // and save the plan. Skipped if already signed in.
         if !app.isAuthenticated { s.append(.account) }
@@ -109,7 +109,7 @@ struct OnboardingFlow: View {
             OnboardingScaffold(
                 progress: progress, onBack: backAction,
                 title: "Connect to Apple Health",
-                subtitle: "Sync your activity, sleep and weight between Scran and the Health app — read-only, for the most complete picture.",
+                subtitle: "Sync your activity, sleep and weight between Clearo and the Health app — read-only, for the most complete picture.",
                 ctaTitle: healthImported ? "Continue" : (healthImporting ? "Connecting…" : "Connect Apple Health"),
                 ctaEnabled: !healthImporting,
                 secondaryTitle: "Skip",
@@ -258,6 +258,22 @@ struct OnboardingFlow: View {
                                  label: \.label, icon: { $0.icon })
             }
 
+        case .focusAreas:
+            // Focus areas can imply health information, so this step collects
+            // explicit UK GDPR consent: informed copy + an affirmative Continue.
+            OnboardingScaffold(progress: progress, onBack: backAction,
+                               title: "What do you want to keep an eye on?",
+                               subtitle: "We'll surface the right numbers on your daily view — like saturated fat and fibre if you're watching your heart. General nutrition info, not medical advice. Because these choices can relate to your health, they're stored securely as health data, used only to personalise your numbers, and never for advertising. Tapping Continue gives your consent — you can change or clear them any time.",
+                               ctaEnabled: !d.focusAreas.isEmpty,
+                               onContinue: {
+                                   UserDefaults.standard.set(Date.now.timeIntervalSince1970,
+                                                             forKey: "clearo.healthDataConsentAt")
+                                   advance()
+                               }) {
+                MultiSelectList(options: FocusArea.allCases, selection: $d.focusAreas,
+                                label: \.label, icon: { $0.icon })
+            }
+
         case .triedApps:
             yesNo(title: "Have you tried other calorie tracking apps?",
                   subtitle: nil, value: $d.triedOtherApps)
@@ -395,30 +411,29 @@ private struct WelcomeScreen: View {
             Spacer()
             ZStack {
                 RadialGlow(diameter: 420)
-                VStack(spacing: 20) {
-                    ZStack {
-                        Circle().stroke(ScranColor.lineStrong, lineWidth: 12)
-                            .frame(width: 150, height: 150)
-                        Circle().trim(from: 0, to: 0.72)
-                            .stroke(ScranColor.verified, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                            .frame(width: 150, height: 150)
-                            .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
-                        Circle().fill(ScranColor.verified).frame(width: 34, height: 34)
-                            .shadow(color: ScranColor.verified.opacity(0.8), radius: 10)
-                    }
+                VStack(spacing: 22) {
+                    ClearoMark(size: 150)
+                    Text("CLEARO")
+                        .font(ScranFont.display(34, relativeTo: .largeTitle))
+                        .tracking(10)
+                        .foregroundStyle(ScranColor.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .accessibilityAddTraits(.isHeader)
                 }
             }
             Spacer()
             VStack(alignment: .leading, spacing: 14) {
                 Text("Calorie tracking that shows its working")
-                    .font(ScranFont.display(36, relativeTo: .largeTitle))
+                    .font(ScranFont.display(32, relativeTo: .largeTitle))
                     .textCase(.uppercase)
                     .foregroundStyle(ScranColor.textPrimary)
+                    .minimumScaleFactor(0.75)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("Every number has a source. Every plan shows its maths. UK-first, honest by design.")
                     .font(ScranFont.body(16, relativeTo: .body))
                     .foregroundStyle(ScranColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)

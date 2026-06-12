@@ -30,8 +30,8 @@ enum ScranConfig {
     static let revenueCatPublicKey = ""
 
     static let entitlementPro = "pro"
-    static let productMonthly = "scran_pro_monthly_399"
-    static let productAnnual = "scran_pro_annual_2499"
+    static let productMonthly = "clearo_pro_monthly_399"
+    static let productAnnual = "clearo_pro_annual_2499"
     static let offeringDefault = "default"
 
     // MARK: - PostHog (EU host)
@@ -58,10 +58,11 @@ enum ScranConfig {
     static let priceAnnualDisplay = "£24.99"
     static let priceAnnualPerMonth = "£2.08"
 
-    // MARK: - Branding
-    static let supportEmail = "hello@wiresidestudios.com"
-    static let privacyURL = URL(string: "https://wiresidestudios.com/scran/privacy")!
-    static let termsURL = URL(string: "https://wiresidestudios.com/scran/terms")!
+    // MARK: - Branding (Clearo — a Wireside Studios product, getclearo.com)
+    static let appName = "Clearo"
+    static let supportEmail = "hello@getclearo.com"
+    static let privacyURL = URL(string: "https://getclearo.com/privacy")!
+    static let termsURL = URL(string: "https://getclearo.com/terms")!
 
     /// True when a real RevenueCat key is configured.
     static var hasRevenueCat: Bool { !revenueCatPublicKey.isEmpty }

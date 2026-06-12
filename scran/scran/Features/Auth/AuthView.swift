@@ -11,15 +11,25 @@ import SwiftUI
 import AuthenticationServices
 import CryptoKit
 
-/// Branded splash shown while we restore a stored session at launch.
+/// Branded splash shown while we restore a stored session at launch. Mirrors
+/// the onboarding welcome lockup (ClearoMark + wordmark) so launch feels
+/// continuous with the rest of the brand.
 struct AuthSplash: View {
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 22) {
             Spacer()
-            PlateMark(size: 150)
-            Text("SCRAN")
-                .font(ScranFont.display(28, relativeTo: .title)).tracking(2)
-                .foregroundStyle(ScranColor.textPrimary)
+            ZStack {
+                RadialGlow(diameter: 420)
+                VStack(spacing: 22) {
+                    ClearoMark(size: 150)
+                    Text("CLEARO")
+                        .font(ScranFont.display(28, relativeTo: .title))
+                        .tracking(10)
+                        .foregroundStyle(ScranColor.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -194,12 +204,12 @@ struct AuthView: View {
     private var consentRows: some View {
         VStack(alignment: .leading, spacing: 12) {
             checkRow(checked: agreedTerms, toggle: { agreedTerms.toggle() }) {
-                (Text("I agree to Scran's ")
-                 + Text("Terms").underline().foregroundColor(ScranColor.textPrimary)
-                 + Text(" and ")
-                 + Text("Privacy Policy").underline().foregroundColor(ScranColor.textPrimary))
+                // Markdown links are tappable — required so users can actually
+                // read what they're agreeing to before consenting.
+                Text(.init("I agree to Clearo's [Terms](\(ScranConfig.termsURL.absoluteString)) and [Privacy Policy](\(ScranConfig.privacyURL.absoluteString))"))
                     .font(ScranFont.body(13, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
+                    .tint(ScranColor.textPrimary)
             }
             checkRow(checked: marketingOptIn, toggle: { marketingOptIn.toggle() }) {
                 Text("Send me occasional tips and product updates.")

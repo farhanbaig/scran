@@ -99,10 +99,24 @@ struct PlateScanScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             PrimaryButton(title: "Review & log", systemImage: "arrow.right") {
-                let draft = combinedDraft(r)
-                coordinator.showEditor(draft)
+                review(r)
             }
             .padding(20).scranBottomBar()
+        }
+    }
+
+    /// Single item → the normal editor. Multiple items → the itemised review,
+    /// which logs one entry per item (individually editable later).
+    private func review(_ r: PlateScanResult) {
+        let clar = appliedCorrections.map { "Correction: \($0)" }
+        if r.items.count == 1, let only = r.items.first {
+            let draft = EntryDraft.fromPlateItem(only, clarifications: clar)
+            draft.photo = captured
+            coordinator.showEditor(draft)
+        } else {
+            let drafts = r.items.map { EntryDraft.fromPlateItem($0, clarifications: clar) }
+            coordinator.showMultiEditor(MultiDraftBox(
+                drafts: drafts, confidence: r.overallConfidence, photo: captured))
         }
     }
 
@@ -367,22 +381,6 @@ struct PlateScanScreen: View {
     }
 
     // MARK: - Logic
-
-    private func combinedDraft(_ r: PlateScanResult) -> EntryDraft {
-        // Merge plate items into a single entry (per-100g blended over total grams).
-        let totalGrams = r.items.reduce(0) { $0 + $1.estimatedGrams }
-        var totalBlock = NutrientBlock.zero
-        for item in r.items { totalBlock = totalBlock + item.per100g.scaled(toGrams: item.estimatedGrams) }
-        let per100g = totalGrams > 0 ? totalBlock.scaled(toGrams: 100 * 100 / totalGrams) : totalBlock
-        let clar = appliedCorrections.map { "Correction: \($0)" }
-        let name = r.items.count == 1 ? r.items[0].name
-            : r.items.prefix(2).map(\.name).joined(separator: " + ") + (r.items.count > 2 ? " +" : "")
-        let draft = EntryDraft(name: name, source: .estimate, confidence: r.overallConfidence,
-                               per100g: per100g, servingSizeG: totalGrams, quantity: 1,
-                               clarifications: clar)
-        draft.photo = captured
-        return draft
-    }
 
     /// Honest, actionable copy per failure mode — never a bare "something went wrong".
     private static func scanErrorMessage(_ error: Error, isOnline: Bool) -> String {

@@ -10,6 +10,35 @@
 
 import SwiftUI
 
+// MARK: - Clearo logo mark
+
+/// The brand mark: the calorie ring opened into a "C" — a ring with nothing to
+/// hide — with the plate-dot at its centre. Drawn so it stays crisp at any size
+/// and adapts to light/dark. The app icon is this same mark rendered to PNG.
+struct ClearoMark: View {
+    var size: CGFloat = 150
+    /// The C opening, centred on the right, in degrees.
+    private let gap: Double = 76
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0, to: (360 - gap) / 360)
+                .stroke(ScranColor.verified,
+                        style: StrokeStyle(lineWidth: size * 0.135, lineCap: .round))
+                .rotationEffect(.degrees(gap / 2))   // centre the opening at 0° (right)
+                .frame(width: size * 0.78, height: size * 0.78)
+                .shadow(color: ScranColor.verified.opacity(0.35), radius: size * 0.07)
+            Circle()
+                .fill(ScranColor.verified)
+                .frame(width: size * 0.21, height: size * 0.21)
+                .shadow(color: ScranColor.verified.opacity(0.6), radius: size * 0.05)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Signature "sourced plate" illustration
 
 /// The brand idea as art: a plate (centre disc) whose food is broken into its

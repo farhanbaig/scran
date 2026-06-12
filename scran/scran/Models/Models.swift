@@ -30,6 +30,7 @@ final class UserPlan {
     var fatTargetG: Double
     var satFatLimitG: Double
     var fibreTargetG: Double
+    var focusAreas: [String]       // FocusArea.rawValue — user-chosen daily-view lenses
     var explanation: String?
     var explanationVersion: Int
     var createdAt: Date
@@ -40,7 +41,8 @@ final class UserPlan {
          biologicalSex: String, activityLevel: String, weeklyWorkouts: Int, goal: String,
          weeklyRateKg: Double, bmr: Double, tdee: Double, dailyTargetKcal: Double,
          proteinTargetG: Double, carbsTargetG: Double, fatTargetG: Double,
-         satFatLimitG: Double, fibreTargetG: Double, explanation: String? = nil,
+         satFatLimitG: Double, fibreTargetG: Double, focusAreas: [String] = [],
+         explanation: String? = nil,
          explanationVersion: Int = 0, createdAt: Date = .now, updatedAt: Date = .now,
          syncState: String = SyncState.pending.rawValue) {
         self.id = id; self.heightCm = heightCm; self.weightKg = weightKg
@@ -50,6 +52,7 @@ final class UserPlan {
         self.dailyTargetKcal = dailyTargetKcal; self.proteinTargetG = proteinTargetG
         self.carbsTargetG = carbsTargetG; self.fatTargetG = fatTargetG
         self.satFatLimitG = satFatLimitG; self.fibreTargetG = fibreTargetG
+        self.focusAreas = focusAreas
         self.explanation = explanation; self.explanationVersion = explanationVersion
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.syncState = syncState
     }
@@ -58,6 +61,9 @@ final class UserPlan {
     var activity: ActivityLevel { ActivityLevel(rawValue: activityLevel) ?? .moderate }
     var goalEnum: Goal { Goal(rawValue: goal) ?? .maintain }
     var age: Int { PlanCalculator.age(from: dateOfBirth) }
+
+    /// Decoded focus-area lenses the user chose during onboarding.
+    var focus: Set<FocusArea> { Set(focusAreas.compactMap(FocusArea.init(rawValue:))) }
 
     var input: PlanInput {
         PlanInput(heightCm: heightCm, weightKg: weightKg, age: age, sex: sex,

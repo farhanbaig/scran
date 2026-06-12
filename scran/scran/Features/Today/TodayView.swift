@@ -72,7 +72,7 @@ struct TodayView: View {
                     }
                 }
                 .padding(20)
-                .padding(.bottom, ScranTabBar.contentHeight + 16)
+                .padding(.bottom, 16)
             }
             .scranScreen()
             .toolbar(.hidden, for: .navigationBar)
@@ -133,6 +133,7 @@ struct TodayView: View {
                     MacroBar(label: "FAT", consumed: consumed.fatG,
                              target: plan.fatTargetG, tint: ScranColor.estimate)
                 }
+                FocusBudgetGrid(plan: plan, consumed: consumed)
             }
         }
     }
@@ -155,7 +156,7 @@ struct TodayView: View {
                                 .foregroundStyle(ScranColor.textMuted)
                         }
                         ForEach(items) { entry in
-                            EntryRow(entry: entry)
+                            EntryRow(entry: entry, flag: plan?.highFlag(for: entry.total))
                                 .onTapGesture { editingEntry = entry }
                                 .contextMenu {
                                     Button(role: .destructive) { delete(entry) } label: {
@@ -235,6 +236,8 @@ private struct EvidenceBarCard: View {
 
 struct EntryRow: View {
     let entry: FoodEntry
+    /// A focused limit-nutrient this meal is high in, surfaced as a small flag.
+    var flag: FocusNutrient? = nil
     var body: some View {
         HStack(spacing: 12) {
             #if canImport(UIKit)
@@ -256,6 +259,9 @@ struct EntryRow: View {
                     Text(ScranFormat.grams(entry.totalGrams))
                         .font(ScranFont.mono(11, relativeTo: .caption2))
                         .foregroundStyle(ScranColor.textMuted)
+                    if let flag {
+                        LevelChip(text: "HIGH \(flag.short)", color: flag.tint)
+                    }
                 }
             }
             Spacer()

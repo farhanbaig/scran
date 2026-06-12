@@ -15,15 +15,21 @@ struct EntryDetailSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    @Query(sort: [SortDescriptor(\UserPlan.createdAt, order: .reverse)])
+    private var plans: [UserPlan]
+    private var plan: UserPlan? { plans.first }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 #if canImport(UIKit)
                 if let photo = PhotoStore.image(atRelativePath: entry.photoLocalPath) {
+                    // Fill the full-width 300pt frame edge to edge — minor
+                    // cropping is fine here in exchange for a clean, dense card.
                     Image(uiImage: photo)
                         .resizable().scaledToFill()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 200)
+                        .frame(height: 300)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ScranColor.line))
                         .accessibilityLabel("Photo of \(entry.name)")
@@ -55,6 +61,10 @@ struct EntryDetailSheet: View {
                                     fat: entry.total.fatG)
                     }
                     .animation(.snappy(duration: 0.2), value: entry.total.kcal)
+                }
+
+                if let plan {
+                    FocusInsightCard(meal: entry.total, plan: plan)
                 }
 
                 ScranCard {

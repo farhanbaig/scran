@@ -2,9 +2,9 @@
 //  MainTabView.swift
 //  scran
 //
-//  Tab container with a custom bottom bar: Today · Progress · Settings around a
-//  prominent raised "Log" action button. The bar installs as a bottom safe-area
-//  inset so screen content (and pinned buttons) always sit clear of it.
+//  Tab container: Today · Progress · Settings on the system tab bar. Logging
+//  launches from the prominent button on Today; pushed detail screens hide the
+//  bar natively with .toolbar(.hidden, for: .tabBar).
 //
 
 import SwiftUI
@@ -12,33 +12,26 @@ import SwiftData
 
 enum ScranTab: Hashable { case today, progress, settings }
 
-/// Lets pushed detail screens (Edit plan, Plan reveal) hide the custom tab bar
-/// so their pinned action buttons aren't overlapped. Injected by MainTabView;
-/// absent (nil) outside it, e.g. during onboarding.
-@MainActor @Observable final class ChromeVisibility {
-    var tabBarHidden = false
-}
-
 struct MainTabView: View {
     @Environment(AppModel.self) private var app
     @State private var tab: ScranTab = .today
     @State private var showLogSheet = false
     @State private var activeFlow: LogFlowKind? = nil
-    @State private var chrome = ChromeVisibility()
 
     var body: some View {
-        // Screens stay mounted (opacity-toggled) so tab switches preserve their
-        // scroll position and navigation state, like a system TabView.
-        ZStack {
-            screen(.today) { TodayView(onLog: { Haptics.tap(); showLogSheet = true }) }
-            screen(.progress) { ProgressTabView() }
-            screen(.settings) { NavigationStack { SettingsView() } }
+        TabView(selection: $tab) {
+            Tab("Today", systemImage: "flame.fill", value: ScranTab.today) {
+                TodayView(onLog: { Haptics.tap(); showLogSheet = true })
+            }
+            Tab("Progress", systemImage: "chart.line.uptrend.xyaxis", value: ScranTab.progress) {
+                NavigationStack { ProgressTabView() }
+            }
+            Tab("Settings", systemImage: "gearshape.fill", value: ScranTab.settings) {
+                NavigationStack { SettingsView() }
+            }
         }
-        .environment(chrome)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !chrome.tabBarHidden { ScranTabBar(selection: $tab) }
-        }
-        .scranScreen()
+        .tint(ScranColor.verified)
+        .onChange(of: tab) { _, _ in Haptics.selection() }
         .sheet(isPresented: $showLogSheet) {
             LogSheet { kind in activeFlow = kind }
                 .environment(app)
@@ -47,57 +40,6 @@ struct MainTabView: View {
             LogFlowView(kind: kind) { activeFlow = nil }
                 .environment(app)
         }
-    }
-
-    @ViewBuilder private func screen<Content: View>(_ which: ScranTab, @ViewBuilder _ content: () -> Content) -> some View {
-        content()
-            .opacity(tab == which ? 1 : 0)
-            .allowsHitTesting(tab == which)
-            .accessibilityHidden(tab != which)
-    }
-}
-
-// MARK: - Custom bottom bar (Today · Progress · Settings)
-
-struct ScranTabBar: View {
-    @Binding var selection: ScranTab
-
-    /// Bar content height (excludes the home-indicator safe area). Screens add
-    /// this as bottom padding so their last item clears the bar.
-    static let contentHeight: CGFloat = 60
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 0) {
-            item(.today, "Today", "flame.fill")
-            item(.progress, "Progress", "chart.line.uptrend.xyaxis")
-            item(.settings, "Settings", "gearshape.fill")
-        }
-        .padding(.top, 12)
-        .padding(.horizontal, 6)
-        .background(
-            ScranColor.bg
-                .overlay(alignment: .top) { Rectangle().fill(ScranColor.line).frame(height: 1) }
-                .shadow(color: .black.opacity(0.05), radius: 8, y: -2)
-                .ignoresSafeArea(edges: .bottom)
-        )
-    }
-
-    private func item(_ t: ScranTab, _ title: String, _ icon: String) -> some View {
-        Button {
-            if selection != t { Haptics.selection() }
-            selection = t
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 20, weight: .semibold))
-                Text(title).font(ScranFont.body(10, weight: .semibold, relativeTo: .caption2))
-            }
-            .foregroundStyle(selection == t ? ScranColor.verified : ScranColor.textMuted)
-            .frame(maxWidth: .infinity).frame(height: 46)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(selection == t ? [.isButton, .isSelected] : .isButton)
     }
 }
 
@@ -108,12 +50,15 @@ struct ProgressTabView: View {
     @Environment(AppModel.self) private var app
     @Query(sort: [SortDescriptor(\WeightEntry.date, order: .reverse)]) private var weights: [WeightEntry]
     @Query(sort: [SortDescriptor(\UserPlan.createdAt, order: .reverse)]) private var plans: [UserPlan]
+    @Query(filter: #Predicate<FoodEntry> { $0.deletedAt == nil })
+    private var foodEntries: [FoodEntry]
 
     @State private var showLogWeight = false
     @State private var draftWeight: Double = 80
 
     private var plan: UserPlan? { plans.first }
     private var live: [WeightEntry] { weights.filter { $0.deletedAt == nil } }
+    private var dayStats: [DayStat] { DayStat.build(from: foodEntries) }
     private var latest: Double { live.first?.weightKg ?? plan?.weightKg ?? 0 }
 
     /// "−0.4 kg over the last week" — latest weigh-in vs the most recent one at
@@ -133,6 +78,7 @@ struct ProgressTabView: View {
             VStack(alignment: .leading, spacing: 18) {
                 ScranHeader(title: "Progress",
                             subtitle: weeklyTrend ?? "Weigh in weekly to see your trend")
+                LoggedDaysCard(days: dayStats, plan: plan)
                 currentCard
                 if let plan, latest > 0 { bmiCard(heightCm: plan.heightCm, weightKg: latest) }
                 noteCard

@@ -15,7 +15,7 @@ import UIKit
 
 @MainActor
 @Observable
-final class EntryDraft {
+final class EntryDraft: Identifiable {
     var name: String
     var brand: String?
     var source: EntrySource
