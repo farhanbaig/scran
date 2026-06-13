@@ -106,7 +106,7 @@ struct PlanEditView: View {
     }
 
     private var preview: some View {
-        ScranCard(background: ScranColor.panel2) {
+        ScranCard {
             HStack {
                 Text("New daily target").font(ScranFont.body(14, relativeTo: .body))
                     .foregroundStyle(ScranColor.textMuted)

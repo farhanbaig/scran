@@ -43,16 +43,50 @@ struct SectionLabel: View {
     init(_ text: String) { self.text = text }
     var body: some View {
         Text(text)
-            .font(ScranFont.body(14, weight: .semibold, relativeTo: .subheadline))
+            .font(ScranFont.body(17, weight: .bold, relativeTo: .headline))
             .foregroundStyle(ScranColor.textPrimary)
+    }
+}
+
+// MARK: - Flow layout (wrapping chips)
+
+/// Lays children left-to-right, wrapping to the next line when they don't fit.
+/// Used for chip rows (e.g. the Settings "Your focus" summary).
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, lineHeight: CGFloat = 0
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 { x = 0; y += lineHeight + lineSpacing; lineHeight = 0 }
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        return CGSize(width: maxWidth == .infinity ? x : maxWidth, height: y + lineHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, lineHeight: CGFloat = 0
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX, x > bounds.minX { x = bounds.minX; y += lineHeight + lineSpacing; lineHeight = 0 }
+            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
     }
 }
 
 // MARK: - Card
 
 struct ScranCard<Content: View>: View {
-    var background: Color = ScranColor.panel
-    var border: Color = ScranColor.line
+    /// Defaults to the screen colour (white in light mode); separation comes from
+    /// a soft shadow + hairline border, not a grey fill.
+    var background: Color = ScranColor.bg
+    var border: Color = ScranColor.lineStrong
     var padding: CGFloat = 20
     var cornerRadius: CGFloat = 20
     /// Lays a faint dot-grid "graph paper" texture behind the content.
@@ -71,6 +105,7 @@ struct ScranCard<Content: View>: View {
                                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         }
                     }
+                    .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -123,7 +158,7 @@ struct SecondaryButton: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .foregroundStyle(ScranColor.textPrimary)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.panel))
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.bg))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(ScranColor.lineStrong, lineWidth: 1))
         }
@@ -141,7 +176,7 @@ struct ScranHeader: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
-                .foregroundStyle(ScranColor.textPrimary)
+                .foregroundStyle(ScranColor.verified)
             if let subtitle {
                 Text(subtitle)
                     .font(ScranFont.body(14, relativeTo: .footnote))
@@ -225,7 +260,7 @@ struct ScranStepper: View {
                 .font(.system(size: 14, weight: .bold))
                 .frame(width: 34, height: 34)
                 .foregroundStyle(ScranColor.textPrimary)
-                .background(Circle().fill(ScranColor.panel2))
+                .background(Circle().fill(ScranColor.bg))
                 .overlay(Circle().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
                 .padding(5)  // 44pt hit target (HIG minimum); circle stays 34pt
                 .contentShape(Circle())

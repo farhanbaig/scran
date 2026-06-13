@@ -125,8 +125,8 @@ struct AuthView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(ScranColor.textPrimary)
                         .frame(width: 40, height: 40)
-                        .background(Circle().fill(ScranColor.panel))
-                        .overlay(Circle().strokeBorder(ScranColor.line, lineWidth: 1))
+                        .background(Circle().fill(ScranColor.bg))
+                        .overlay(Circle().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
                 }
                 .accessibilityLabel("Back")
             }
@@ -171,7 +171,7 @@ struct AuthView: View {
             }
             .frame(maxWidth: .infinity).frame(height: 52)
             .foregroundStyle(ScranColor.textPrimary)
-            .background(Capsule().fill(ScranColor.panel))
+            .background(Capsule().fill(ScranColor.bg))
             .overlay(Capsule().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
@@ -223,9 +223,7 @@ struct AuthView: View {
     private func checkRow<L: View>(checked: Bool, toggle: @escaping () -> Void, @ViewBuilder label: () -> L) -> some View {
         Button { Haptics.selection(); toggle() } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: checked ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 20))
-                    .foregroundStyle(checked ? ScranColor.verified : ScranColor.lineStrong)
+                CheckBox(isOn: checked, size: 22)
                 label()
                 Spacer(minLength: 0)
             }
@@ -293,7 +291,7 @@ struct AuthView: View {
         .font(ScranFont.body(16, relativeTo: .body))
         .foregroundStyle(ScranColor.textPrimary)
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.panel))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.bg))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(ScranColor.line))
     }
 

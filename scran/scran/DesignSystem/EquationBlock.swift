@@ -64,6 +64,6 @@ struct EquationBlock: View {
         EquationRow(label: "Daily target", value: "1,982 kcal", isTotal: true),
     ])
     .padding(24)
-    .background(ScranColor.panel2)
+    .background(ScranColor.bg)
     .preferredColorScheme(.dark)
 }

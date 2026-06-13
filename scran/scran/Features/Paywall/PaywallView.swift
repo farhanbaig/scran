@@ -110,7 +110,7 @@ struct PaywallView: View {
     }
 
     private var proCard: some View {
-        ScranCard(background: ScranColor.panel2, border: ScranColor.verified.opacity(0.5)) {
+        ScranCard(border: ScranColor.verified.opacity(0.5)) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("PRO").font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
                     .tracking(1.6).foregroundStyle(ScranColor.verified)

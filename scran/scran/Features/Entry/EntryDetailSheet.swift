@@ -47,7 +47,7 @@ struct EntryDetailSheet: View {
                         .foregroundStyle(ScranColor.textMuted)
                 }
 
-                ScranCard(background: ScranColor.panel2) {
+                ScranCard {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(ScranFormat.int(entry.total.kcal))

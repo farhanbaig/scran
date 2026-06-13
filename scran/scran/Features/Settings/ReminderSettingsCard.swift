@@ -40,6 +40,15 @@ struct ReminderSettingsCard: View {
                 .font(ScranFont.body(12, relativeTo: .caption))
                 .foregroundStyle(ScranColor.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
+
+            #if DEBUG
+            Button("Send test reminder (6s)") {
+                Task { await reminders.scheduleTestNotification() }
+            }
+            .font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
+            .foregroundStyle(ScranColor.verified)
+            .padding(.top, 4)
+            #endif
         }
         .task { await reminders.refreshAuthorization() }
     }

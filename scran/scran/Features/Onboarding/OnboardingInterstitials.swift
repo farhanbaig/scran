@@ -64,7 +64,7 @@ struct AffirmationScreen: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.panel))
+                .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))
                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.line))
                 .padding(.horizontal, 24).padding(.top, 24)
             }
@@ -195,7 +195,7 @@ struct SocialProofScreen: View {
                             .foregroundStyle(ScranColor.textMuted)
                     }
                     .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.panel))
+                    .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.line))
                 }
                 HStack(spacing: 8) {

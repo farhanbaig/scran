@@ -140,16 +140,16 @@ struct LogSheet: View {
                 trailingTag(tag)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ScranColor.textMuted.opacity(0.6))
+                    .foregroundStyle(tinted ? source.color : ScranColor.verified)
                     .accessibilityHidden(true)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ScranColor.panel)
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ScranColor.bg)
             )
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(ScranColor.line, lineWidth: 1))
+                .strokeBorder(ScranColor.lineStrong, lineWidth: 1))
             .opacity(disabled ? 0.5 : 1)
         }
         .buttonStyle(PressableStyle())

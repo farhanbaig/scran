@@ -112,6 +112,11 @@ final class ReminderService {
     private var refreshTask: Task<Void, Never>?
     private var saveObserver: NSObjectProtocol?
     private var started = false
+    #if canImport(UIKit)
+    // Retained so UNUserNotificationCenter's weak delegate stays alive — lets
+    // reminders present as a banner even while the app is foregrounded.
+    private let presenter = ReminderPresenter()
+    #endif
 
     /// Local-timezone day key (NOT the UTC formatter SyncQueue uses).
     private let dayKey: DateFormatter = {
@@ -142,12 +147,19 @@ final class ReminderService {
     func start(context: ModelContext) {
         self.context = context
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-reminderTest") {
+            UNUserNotificationCenter.current().delegate = presenter
+            Task { try? await Task.sleep(for: .seconds(1)); await scheduleTestNotification() }
+        }
         // Screenshot/dev runs seed data — don't schedule from it.
         if ProcessInfo.processInfo.arguments.contains("-uiPreview") { return }
         #endif
         guard !started else { return }
         started = true
         #if canImport(UIKit)
+        // Present reminders even in the foreground (banner + sound), so they're
+        // not silently swallowed while the app is open.
+        UNUserNotificationCenter.current().delegate = presenter
         // One choke point for every data mutation: a SwiftData save. Covers all
         // log/edit/delete paths, plan creation, sync pulls and sign-out wipes —
         // no call-site edits, and self-healing (a deleted entry restores its
@@ -182,6 +194,17 @@ final class ReminderService {
         #if canImport(UIKit)
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         authorization = settings.authorizationStatus
+        #if DEBUG
+        print("""
+        ⏰ settings — auth=\(settings.authorizationStatus.rawValue) \
+        alert=\(settings.alertSetting.rawValue) sound=\(settings.soundSetting.rawValue) \
+        lockScreen=\(settings.lockScreenSetting.rawValue) \
+        notifCenter=\(settings.notificationCenterSetting.rawValue) \
+        alertStyle=\(settings.alertStyle.rawValue) \
+        scheduledDelivery=\(settings.scheduledDeliverySetting.rawValue) \
+        appSettings=\(settings.providesAppNotificationSettings)
+        """)
+        #endif
         #endif
     }
 
@@ -243,10 +266,19 @@ final class ReminderService {
 
     private func refresh() async {
         #if canImport(UIKit)
-        cancelAllPending()
+        let center = UNUserNotificationCenter.current()
+        // Remove our stale pending FIRST, awaited — identifiers are reused per
+        // date, so a fire-and-forget removal could land AFTER the re-adds below
+        // and delete the very notifications we just scheduled (the bug).
+        let pending = await center.pendingNotificationRequests()
+        let stale = pending.map(\.identifier).filter { $0.hasPrefix(idPrefix) }
+        if !stale.isEmpty { center.removePendingNotificationRequests(withIdentifiers: stale) }
+
+        #if DEBUG
+        print("⏰ refresh — enabled=\(enabled) isAuthorized=\(isAuthorized) auth=\(authorization.rawValue) hasPlan=\(hasPlan()) context=\(context != nil) staleRemoved=\(stale.count)")
+        #endif
         guard enabled, isAuthorized, hasPlan() else { return }
 
-        let center = UNUserNotificationCenter.current()
         let cal = Calendar.current
         let now = Date()
         let loggedToday = loggedMealtimesToday()
@@ -280,9 +312,26 @@ final class ReminderService {
                 let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
                 let id = "\(idPrefix)\(m.rawValue).\(dayKey.string(from: fire))"
                 let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                #if DEBUG
+                do { try await center.add(request) }
+                catch { print("⏰ add FAILED \(id): \(error)") }
+                #else
                 try? await center.add(request)
+                #endif
             }
         }
+        #if DEBUG
+        let nowPending = await center.pendingNotificationRequests()
+            .filter { $0.identifier.hasPrefix(idPrefix) }
+        let fmt = DateFormatter()
+        fmt.calendar = Calendar.current
+        fmt.timeZone = TimeZone.current          // print LOCAL time, not UTC
+        fmt.dateFormat = "yyyy-MM-dd HH:mm zzz"
+        print("⏰ scheduled \(nowPending.count) pending request(s) — local tz \(TimeZone.current.identifier):")
+        for r in nowPending.sorted(by: { ($0.nextFire ?? .distantFuture) < ($1.nextFire ?? .distantFuture) }) {
+            print("    \(r.identifier) → \(r.nextFire.map { fmt.string(from: $0) } ?? "nil")")
+        }
+        #endif
         #endif
     }
 
@@ -326,4 +375,46 @@ final class ReminderService {
         d.fetchLimit = 1
         return ((try? context.fetchCount(d)) ?? 0) > 0
     }
+
+    #if DEBUG
+    /// Schedules a one-off reminder a few seconds out to verify delivery
+    /// end-to-end (permission → schedule → present). Triggered by the
+    /// `-reminderTest` launch arg in `start()`.
+    func scheduleTestNotification() async {
+        #if canImport(UIKit)
+        _ = await requestPermission()
+        guard isAuthorized else { print("⏰ reminder test: NOT authorized (\(authorization.rawValue))"); return }
+        let content = UNMutableNotificationContent()
+        content.title = "Log dinner 🍽️"
+        content.body = "Test reminder — this is how a nudge looks."
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 6, repeats: false)
+        let req = UNNotificationRequest(identifier: "\(idPrefix)test", content: content, trigger: trigger)
+        try? await UNUserNotificationCenter.current().add(req)
+        print("⏰ reminder test scheduled (fires in 6s)")
+        #endif
+    }
+    #endif
 }
+
+#if canImport(UIKit)
+#if DEBUG
+private extension UNNotificationRequest {
+    /// Next fire date for whichever trigger type this request carries (diagnostics only).
+    var nextFire: Date? {
+        if let t = trigger as? UNCalendarNotificationTrigger { return t.nextTriggerDate() }
+        if let t = trigger as? UNTimeIntervalNotificationTrigger { return t.nextTriggerDate() }
+        return nil
+    }
+}
+#endif
+
+/// Lets reminders present as a banner/sound even while the app is foregrounded.
+final class ReminderPresenter: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification) async
+        -> UNNotificationPresentationOptions {
+        [.banner, .sound, .list]
+    }
+}
+#endif

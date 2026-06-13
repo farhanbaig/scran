@@ -19,7 +19,8 @@ struct CalorieRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(ScranColor.lineStrong, lineWidth: 14)
+            // Track is a faint tint of the ring colour — no neutral grey.
+            Circle().stroke(ringColor.opacity(0.15), lineWidth: 14)
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(ringColor, style: StrokeStyle(lineWidth: 14, lineCap: .round))
@@ -59,29 +60,31 @@ struct MacroBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Label on its own line — never competes with the value for width.
             HStack(spacing: 4) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(tint)
                         .accessibilityHidden(true)
                 }
                 Text(label).font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
                     .foregroundStyle(ScranColor.textMuted)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Spacer()
-                Text("\(ScranFormat.int(consumed))/\(ScranFormat.int(target))g")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .foregroundStyle(ScranColor.textPrimary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(ScranColor.lineStrong).frame(height: 6)
+                    Capsule().fill(tint.opacity(0.16)).frame(height: 6)
                     Capsule().fill(tint).frame(width: geo.size.width * progress, height: 6)
                 }
             }
             .frame(height: 6)
+            // Value on its own line below the bar — full column width, no crop.
+            Text("\(ScranFormat.int(consumed)) / \(ScranFormat.int(target))g")
+                .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
+                .foregroundStyle(ScranColor.textPrimary)
+                .lineLimit(1).minimumScaleFactor(0.8)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label): \(ScranFormat.int(consumed)) of \(ScranFormat.int(target)) grams")
@@ -110,8 +113,8 @@ struct EvidenceBar: View {
             }
             .frame(height: 8)
             .clipShape(Capsule())
-            .background(Capsule().fill(ScranColor.lineStrong))
-            HStack(spacing: 14) {
+            .background(Capsule().fill(ScranColor.verified.opacity(0.12)))
+            FlowLayout(spacing: 14, lineSpacing: 6) {
                 legend("Verified", ScranColor.verified, verifiedKcal)
                 legend("Database", ScranColor.database, databaseKcal)
                 legend("Estimate", ScranColor.estimate, estimateKcal)

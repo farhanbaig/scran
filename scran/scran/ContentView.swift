@@ -115,6 +115,12 @@ extension RootView {
                     servingSizeG: 400))
             }
         }
+        // A few weigh-ins so the weight trend chart has a line to draw.
+        let weights: [(Int, Double)] = [(28, 84.2), (21, 83.6), (14, 83.1), (7, 82.6), (0, 82.0)]
+        for (daysAgo, kg) in weights {
+            guard let d = cal.date(byAdding: .day, value: -daysAgo, to: .now) else { continue }
+            context.insert(WeightEntry(date: d, weightKg: kg))
+        }
         try? context.save()
     }
 }

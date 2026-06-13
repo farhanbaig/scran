@@ -112,23 +112,40 @@ struct SettingsView: View {
             NavigationLink {
                 FocusEditView(plan: plan)
             } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(selected.isEmpty ? "Not set" : selected.map(\.label).joined(separator: ", "))
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Which numbers Clearo highlights for you")
+                            .font(ScranFont.body(13, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.textMuted)
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(ScranColor.textMuted)
+                    }
+                    if selected.isEmpty {
+                        Text("Not set — tap to choose")
                             .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                             .foregroundStyle(ScranColor.textPrimary)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("Which numbers Clearo highlights for you")
-                            .font(ScranFont.body(12, relativeTo: .caption))
-                            .foregroundStyle(ScranColor.textMuted)
+                    } else {
+                        FlowLayout(spacing: 8, lineSpacing: 8) {
+                            ForEach(selected) { area in focusChip(area) }
+                        }
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right").foregroundStyle(ScranColor.textMuted)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
         }
+    }
+
+    private func focusChip(_ area: FocusArea) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: area.icon)
+                .font(.system(size: 12, weight: .semibold))
+            Text(area.shortLabel)
+                .font(ScranFont.body(14, weight: .semibold, relativeTo: .footnote))
+        }
+        .foregroundStyle(ScranColor.verified)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(Capsule().fill(ScranColor.verifiedDim))
+        .overlay(Capsule().strokeBorder(ScranColor.verified.opacity(0.3), lineWidth: 1))
     }
 
     // MARK: - Account
@@ -163,7 +180,7 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(ScranColor.textPrimary)
                     .padding(.vertical, 12).padding(.horizontal, 14)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.panel2))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.bg))
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.lineStrong))
                 }
             }
@@ -345,7 +362,7 @@ struct SettingsView: View {
         }
         .foregroundStyle(ScranColor.textPrimary)
         .frame(maxWidth: .infinity).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.panel2))
+        .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.bg))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.lineStrong))
     }
 
@@ -436,8 +453,9 @@ struct SettingsCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(RoundedRectangle(cornerRadius: 20).fill(ScranColor.panel))
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(ScranColor.line))
+        .background(RoundedRectangle(cornerRadius: 20).fill(ScranColor.bg)
+            .shadow(color: .black.opacity(0.05), radius: 12, y: 4))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(ScranColor.lineStrong))
     }
 }
 

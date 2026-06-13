@@ -32,7 +32,8 @@ struct HealthStatTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.panel2))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(ScranColor.lineStrong))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label): \(value)")
     }

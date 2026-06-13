@@ -85,7 +85,7 @@ struct EntryEditorView: View {
     }
 
     private var totalsCard: some View {
-        ScranCard(background: ScranColor.panel2) {
+        ScranCard {
             VStack(alignment: .leading, spacing: 14) {
                 SectionLabel("This entry")
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

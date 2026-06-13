@@ -80,6 +80,7 @@ struct ProgressTabView: View {
                             subtitle: weeklyTrend ?? "Weigh in weekly to see your trend")
                 LoggedDaysCard(days: dayStats, plan: plan)
                 currentCard
+                WeightTrendChart(entries: live)
                 if let plan, latest > 0 { bmiCard(heightCm: plan.heightCm, weightKg: latest) }
                 noteCard
                 if !live.isEmpty { historySection }
@@ -98,7 +99,7 @@ struct ProgressTabView: View {
     }
 
     private var currentCard: some View {
-        ScranCard(background: ScranColor.panel2, textured: true) {
+        ScranCard {
             VStack(alignment: .leading, spacing: 6) {
                 SectionLabel("Current weight")
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -219,8 +220,8 @@ struct ProgressTabView: View {
                         .foregroundStyle(ScranColor.textMuted)
                 }
                 .padding(14)
-                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
             }
         }
     }

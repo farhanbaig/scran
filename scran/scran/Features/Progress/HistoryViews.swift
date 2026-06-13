@@ -113,7 +113,7 @@ struct LoggedDaysCard: View {
                         stat(onTargetText, "on target (30d)")
                         stat(weekAverageText, "avg kcal (7d)")
                     }
-                    WeekBars(days: days, target: target)
+                    WeekBarChart(days: days, target: target)
                 }
             }
         }
@@ -132,52 +132,6 @@ struct LoggedDaysCard: View {
                 .foregroundStyle(ScranColor.textMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// Last 7 calendar days as bars against the kcal target (dashed line at 100%).
-private struct WeekBars: View {
-    let days: [DayStat]
-    let target: Double
-
-    private var week: [(Date, Double)] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: .now)
-        return (0..<7).reversed().compactMap { back in
-            guard let d = cal.date(byAdding: .day, value: -back, to: today) else { return nil }
-            return (d, days.first { $0.day == d }?.total.kcal ?? 0)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ZStack(alignment: .bottom) {
-                // Target line at 2/3 height; bars scale so target == 2/3.
-                Rectangle()
-                    .fill(ScranColor.lineStrong)
-                    .frame(height: 1)
-                    .offset(y: -40)
-                HStack(alignment: .bottom, spacing: 8) {
-                    ForEach(week, id: \.0) { day, kcal in
-                        let ratio = target > 0 ? kcal / target : 0
-                        let height = max(kcal > 0 ? 4 : 2, min(60, 40 * ratio))
-                        let verdict = DayVerdict(kcal: kcal, target: target)
-                        VStack(spacing: 4) {
-                            Capsule()
-                                .fill(kcal > 0 ? verdict.tint : ScranColor.lineStrong)
-                                .frame(height: height)
-                            Text(day.formatted(.dateTime.weekday(.narrow)))
-                                .font(ScranFont.mono(9, relativeTo: .caption2))
-                                .foregroundStyle(ScranColor.textMuted)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-            .frame(height: 78, alignment: .bottom)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Last seven days of calories against your target")
     }
 }
 
@@ -203,7 +157,7 @@ struct HistoryListView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if days.isEmpty {
                     VStack(spacing: 16) {
-                        PlateMark(size: 132)
+                        TrendArt(size: 150)
                         Text("Nothing logged yet — your days will appear here.")
                             .font(ScranFont.body(15, relativeTo: .body))
                             .foregroundStyle(ScranColor.textMuted)
@@ -314,14 +268,14 @@ private struct DayRow: View {
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.panel))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.line))
+        .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.lineStrong))
         .contentShape(Rectangle())
     }
 
     private func kcalBar(ratio: Double, tint: Color) -> some View {
         ZStack(alignment: .leading) {
-            Capsule().fill(ScranColor.lineStrong).frame(width: 72, height: 5)
+            Capsule().fill(tint.opacity(0.18)).frame(width: 72, height: 5)
             Capsule().fill(tint)
                 .frame(width: 72 * min(1, max(0.02, ratio)), height: 5)
         }
@@ -360,7 +314,7 @@ struct DayDetailView: View {
     }
 
     private var totalsCard: some View {
-        ScranCard(background: ScranColor.panel2, textured: true) {
+        ScranCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     SectionLabel("The day")

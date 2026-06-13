@@ -22,6 +22,12 @@ enum ScranFont {
     private static let monoRegular = "SpaceMono-Regular"
     private static let monoBold    = "SpaceMono-Bold"
 
+    /// Global type-scale multiplier. Bumps every font up proportionally — text
+    /// across the app reads larger without touching individual call sites.
+    /// Display (already large titles) scales a little less to avoid truncation.
+    private static let bodyScale: CGFloat = 1.13
+    private static let displayScale: CGFloat = 1.06
+
     enum BodyWeight {
         case regular, medium, semibold, bold
         var name: String {
@@ -44,19 +50,19 @@ enum ScranFont {
 
     /// Archivo Black — display headlines. Pair with `.textCase(.uppercase)`.
     static func display(_ size: CGFloat, relativeTo style: Font.TextStyle = .largeTitle) -> Font {
-        .custom(displayName, size: size, relativeTo: style)
+        .custom(displayName, size: (size * displayScale).rounded(), relativeTo: style)
     }
 
     /// Inter Tight — body, buttons, labels.
     static func body(_ size: CGFloat, weight: BodyWeight = .regular,
                      relativeTo style: Font.TextStyle = .body) -> Font {
-        .custom(weight.name, size: size, relativeTo: style)
+        .custom(weight.name, size: (size * bodyScale).rounded(), relativeTo: style)
     }
 
     /// Space Mono — numbers, evidence, badge text, microcopy.
     static func mono(_ size: CGFloat, weight: Font.Weight = .regular,
                      relativeTo style: Font.TextStyle = .body) -> Font {
-        .custom(weight == .bold ? monoBold : monoRegular, size: size, relativeTo: style)
+        .custom(weight == .bold ? monoBold : monoRegular, size: (size * bodyScale).rounded(), relativeTo: style)
     }
 }
 

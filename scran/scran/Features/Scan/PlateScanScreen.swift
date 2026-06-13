@@ -136,7 +136,7 @@ struct PlateScanScreen: View {
         let conf = r.overallConfidence
         let spread = total * (1 - conf) * 0.6
         let low = max(0, total - spread), high = total + spread
-        return ScranCard(background: ScranColor.panel2) {
+        return ScranCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text("roughly")
                     .font(ScranFont.body(13, relativeTo: .footnote)).foregroundStyle(ScranColor.textMuted)
@@ -188,12 +188,20 @@ struct PlateScanScreen: View {
 
     private func optionChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: { Haptics.selection(); action() }) {
-            Text(label)
-                .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
-                .padding(.vertical, 9).padding(.horizontal, 16)
-                .foregroundStyle(selected ? ScranColor.bg : ScranColor.textPrimary)
-                .background(Capsule().fill(selected ? ScranColor.estimate : ScranColor.panel))
-                .overlay(Capsule().strokeBorder(ScranColor.estimate.opacity(0.5), lineWidth: 1))
+            HStack(spacing: 6) {
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                Text(label)
+                    .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+            }
+            .padding(.vertical, 9).padding(.horizontal, 15)
+            .foregroundStyle(selected ? ScranColor.onVerified : ScranColor.estimate)
+            // Selected = solid amber; unselected = amber-tinted (never grey).
+            .background(Capsule().fill(selected ? ScranColor.estimate : ScranColor.estimateDim))
+            .overlay(Capsule().strokeBorder(ScranColor.estimate.opacity(selected ? 0 : 0.5),
+                                            lineWidth: 1.5))
         }
         .buttonStyle(PressableStyle())
     }
@@ -242,8 +250,8 @@ struct PlateScanScreen: View {
                                     Image(systemName: "arrow.right").foregroundStyle(ScranColor.estimate)
                                 }
                                 .padding(14)
-                                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
                             }
                             .buttonStyle(PressableStyle())
                         }
@@ -252,8 +260,8 @@ struct PlateScanScreen: View {
                 TextField("Or type what it is…", text: $itemCorrectionText)
                     .font(ScranFont.body(15, relativeTo: .body))
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
                 PrimaryButton(title: "Recalculate", systemImage: "arrow.triangle.2.circlepath",
                               enabled: !itemCorrectionText.trimmingCharacters(in: .whitespaces).isEmpty) {
                     correctItem(item, to: itemCorrectionText.trimmingCharacters(in: .whitespaces))
@@ -325,8 +333,8 @@ struct PlateScanScreen: View {
                     .font(ScranFont.body(15, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
                 Spacer()
                 PrimaryButton(title: "Recalculate", systemImage: "arrow.triangle.2.circlepath",
                               enabled: !correctionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
@@ -388,7 +396,7 @@ struct PlateScanScreen: View {
                         .foregroundStyle(ScranColor.estimate)
                     Image(systemName: "pencil")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(ScranColor.textMuted.opacity(0.6))
+                        .foregroundStyle(ScranColor.estimate)
                         .accessibilityHidden(true)
                 }
             }

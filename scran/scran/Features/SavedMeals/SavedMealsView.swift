@@ -35,7 +35,7 @@ struct SavedMealsView: View {
                 List {
                     ForEach(meals) { meal in
                         row(meal)
-                            .listRowBackground(ScranColor.panel)
+                            .listRowBackground(ScranColor.bg)
                             .listRowSeparatorTint(ScranColor.line)
                     }
                     .onDelete(perform: delete)
@@ -99,8 +99,9 @@ struct SavedMealsView: View {
 
     private var fallbackThumb: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel2)
+            RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg)
                 .frame(width: 56, height: 56)
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
             Image(systemName: "bookmark.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(ScranColor.verified)
@@ -110,7 +111,7 @@ struct SavedMealsView: View {
 
     private var empty: some View {
         VStack(spacing: 16) {
-            PlateMark(size: 156)
+            SavedMealArt(size: 160)
             Text("No saved meals yet")
                 .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)

@@ -106,6 +106,16 @@ enum FocusArea: String, CaseIterable, Identifiable, Sendable {
         case .gut:        return "Gut health & fibre"
         }
     }
+    /// Short name for compact chips (Settings summary).
+    var shortLabel: String {
+        switch self {
+        case .weight:     return "Weight"
+        case .heart:      return "Heart"
+        case .bloodSugar: return "Blood sugar"
+        case .protein:    return "Protein"
+        case .gut:        return "Gut health"
+        }
+    }
     var icon: String {
         switch self {
         case .weight:     return "scalemass.fill"

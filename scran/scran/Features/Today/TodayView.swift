@@ -122,7 +122,7 @@ struct TodayView: View {
     // MARK: - Ring
 
     private func ringCard(_ plan: UserPlan) -> some View {
-        ScranCard(background: ScranColor.panel2, textured: true) {
+        ScranCard {
             VStack(spacing: 22) {
                 CalorieRing(consumed: consumed.kcal, target: plan.dailyTargetKcal)
                 HStack(spacing: 22) {
@@ -175,7 +175,7 @@ struct TodayView: View {
 
     private var emptyState: some View {
         VStack(spacing: 18) {
-            PlateMark(size: 168)
+            EmptyMealArt(size: 172)
                 .padding(.top, 8)
             Text("Nothing logged yet")
                 .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
@@ -203,8 +203,8 @@ struct TodayView: View {
             Spacer()
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+        .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
     }
 
     private func delete(_ entry: FoodEntry) {
@@ -273,8 +273,8 @@ struct EntryRow: View {
                 .foregroundStyle(ScranColor.textPrimary)
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.panel))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.line))
+        .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.lineStrong))
         .contentShape(Rectangle())
     }
 }

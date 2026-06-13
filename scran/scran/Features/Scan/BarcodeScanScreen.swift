@@ -82,7 +82,7 @@ struct BarcodeScanScreen: View {
     }
 
     private func fallbackCard(_ code: String) -> some View {
-        ScranCard(background: ScranColor.panel2, border: ScranColor.lineStrong) {
+        ScranCard {
             VStack(alignment: .leading, spacing: 14) {
                 SourceBadge(source: .barcode, customText: "NOT IN DATABASE")
                 Text("Not in the database")
@@ -106,7 +106,7 @@ struct BarcodeScanScreen: View {
     }
 
     private func errorCard(_ message: String) -> some View {
-        ScranCard(background: ScranColor.panel2, border: ScranColor.error.opacity(0.35)) {
+        ScranCard(border: ScranColor.error.opacity(0.35)) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(ScranColor.error)
