@@ -126,12 +126,15 @@ struct TodayView: View {
             VStack(spacing: 22) {
                 CalorieRing(consumed: consumed.kcal, target: plan.dailyTargetKcal)
                 HStack(spacing: 22) {
-                    MacroBar(label: "PROTEIN", consumed: consumed.proteinG,
-                             target: plan.proteinTargetG, tint: ScranColor.verified)
-                    MacroBar(label: "CARBS", consumed: consumed.carbsG,
-                             target: plan.carbsTargetG, tint: ScranColor.database)
-                    MacroBar(label: "FAT", consumed: consumed.fatG,
-                             target: plan.fatTargetG, tint: ScranColor.estimate)
+                    MacroBar(label: "Protein", consumed: consumed.proteinG,
+                             target: plan.proteinTargetG, tint: ScranColor.verified,
+                             icon: MacroGlyph.protein)
+                    MacroBar(label: "Carbs", consumed: consumed.carbsG,
+                             target: plan.carbsTargetG, tint: ScranColor.database,
+                             icon: MacroGlyph.carbs)
+                    MacroBar(label: "Fat", consumed: consumed.fatG,
+                             target: plan.fatTargetG, tint: ScranColor.estimate,
+                             icon: MacroGlyph.fat)
                 }
                 FocusBudgetGrid(plan: plan, consumed: consumed)
             }
@@ -147,12 +150,10 @@ struct TodayView: View {
                 if let items = groups[meal], !items.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text(meal.label.uppercased())
-                                .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                                .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                            SectionLabel(meal.label)
                             Spacer()
                             Text(ScranFormat.kcalText(items.reduce(0) { $0 + $1.total.kcal }))
-                                .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
+                                .font(ScranFont.mono(13, weight: .bold, relativeTo: .caption))
                                 .foregroundStyle(ScranColor.textMuted)
                         }
                         ForEach(items) { entry in
@@ -241,12 +242,14 @@ struct EntryRow: View {
     var body: some View {
         HStack(spacing: 12) {
             #if canImport(UIKit)
+            // The user's own food photo is the most evocative thing on the row —
+            // give it real presence rather than a postage stamp.
             if let photo = PhotoStore.image(atRelativePath: entry.photoLocalPath) {
                 Image(uiImage: photo)
                     .resizable().scaledToFill()
-                    .frame(width: 46, height: 46)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.line))
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
                     .accessibilityHidden(true)
             }
             #endif

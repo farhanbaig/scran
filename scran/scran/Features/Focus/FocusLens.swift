@@ -32,6 +32,28 @@ enum FocusNutrient: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Sentence-case label for budget bars (chips keep the caps `short`).
+    var barLabel: String {
+        switch self {
+        case .satFat: return "Sat fat"
+        case .salt:   return "Salt"
+        case .sugar:  return "Sugar"
+        case .fibre:  return "Fibre"
+        }
+    }
+
+    /// Nutrient glyph — same icon language as MacroGlyph, no collisions:
+    /// heart = why you watch sat fat, cube = sugar lump, leaf = fibre,
+    /// sparkles = salt crystals.
+    var icon: String {
+        switch self {
+        case .satFat: return "heart.fill"
+        case .salt:   return "sparkles"
+        case .sugar:  return "cube.fill"
+        case .fibre:  return "leaf.fill"
+        }
+    }
+
     /// Full label for the per-meal insight rows.
     var label: String {
         switch self {
@@ -187,16 +209,17 @@ struct FocusBudgetGrid: View {
         if !nutrients.isEmpty {
             VStack(spacing: 16) {
                 Rectangle().fill(ScranColor.line).frame(height: 1)
-                HStack {
-                    Label("YOUR FOCUS", systemImage: "scope")
-                        .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                        .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                HStack(spacing: 6) {
+                    Image(systemName: "scope")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(ScranColor.textPrimary)
+                    SectionLabel("Your focus")
                     Spacer()
                 }
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                     ForEach(nutrients) { n in
-                        MacroBar(label: n.short, consumed: n.amount(in: consumed),
-                                 target: n.dailyTarget(plan), tint: n.tint)
+                        MacroBar(label: n.barLabel, consumed: n.amount(in: consumed),
+                                 target: n.dailyTarget(plan), tint: n.tint, icon: n.icon)
                     }
                 }
             }
@@ -218,16 +241,14 @@ struct FocusInsightCard: View {
         if !nutrients.isEmpty {
             ScranCard {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("FOR YOUR FOCUS")
-                        .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                        .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                    SectionLabel("For your focus")
 
                     ForEach(nutrients) { n in
                         let amount = n.amount(in: meal)
                         let level = n.level(forMeal: amount, plan: plan)
                         VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                Circle().fill(n.tint).frame(width: 8, height: 8)
+                            HStack(spacing: 10) {
+                                NutrientTile(icon: n.icon, tint: n.tint, size: 26)
                                 Text(n.label)
                                     .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                                     .foregroundStyle(ScranColor.textPrimary)
@@ -238,8 +259,9 @@ struct FocusInsightCard: View {
                                 LevelChip(text: level.label, color: n.color(for: level))
                             }
                             Text(n.education)
-                                .font(ScranFont.body(12, relativeTo: .caption))
+                                .font(ScranFont.body(13, relativeTo: .footnote))
                                 .foregroundStyle(ScranColor.textMuted)
+                                .lineSpacing(2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if n.id != nutrients.last?.id {
@@ -248,7 +270,7 @@ struct FocusInsightCard: View {
                     }
 
                     Text("General nutrition info, not medical advice. Your doctor's guidance comes first.")
-                        .font(ScranFont.mono(11, relativeTo: .caption2))
+                        .font(ScranFont.body(12, relativeTo: .caption))
                         .foregroundStyle(ScranColor.textMuted)
                         .padding(.top, 2)
                 }

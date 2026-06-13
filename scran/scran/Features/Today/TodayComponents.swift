@@ -52,12 +52,20 @@ struct MacroBar: View {
     let consumed: Double
     let target: Double
     var tint: Color = ScranColor.textPrimary
+    /// Optional nutrient glyph shown before the label (see MacroGlyph).
+    var icon: String? = nil
 
     private var progress: Double { target > 0 ? min(consumed / target, 1) : 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .accessibilityHidden(true)
+                }
                 Text(label).font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
                     .foregroundStyle(ScranColor.textMuted)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -91,9 +99,7 @@ struct EvidenceBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("TODAY'S EVIDENCE")
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+            SectionLabel("Today's evidence")
             GeometryReader { geo in
                 HStack(spacing: 2) {
                     segment(verifiedKcal, ScranColor.verified, geo.size.width)
@@ -131,7 +137,7 @@ struct EvidenceBar: View {
         return HStack(spacing: 6) {
             Circle().fill(color).frame(width: 7, height: 7)
             Text("\(name) \(pct)%")
-                .font(ScranFont.mono(11, relativeTo: .caption2))
+                .font(ScranFont.mono(12, relativeTo: .caption))
                 .foregroundStyle(ScranColor.textMuted)
         }
     }

@@ -83,11 +83,9 @@ struct PlateScanScreen: View {
 
                 if !r.questions.isEmpty { questionsSection(r) }
 
-                Text("ITEMS")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                SectionLabel("Items")
                 Text("Tap an item to fix what it is.")
-                    .font(ScranFont.body(12, relativeTo: .caption2))
+                    .font(ScranFont.body(13, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
                 ForEach(r.items) { item in
                     itemRow(item)
@@ -105,19 +103,32 @@ struct PlateScanScreen: View {
         }
     }
 
-    /// Single item → the normal editor. Multiple items → the itemised review,
-    /// which logs one entry per item (individually editable later).
+    /// A scan logs as ONE meal entry. We decompose server-side for accuracy then
+    /// blend the components back into a single entry here — the per-item list is
+    /// kept in the entry's clarifications so the breakdown isn't lost.
     private func review(_ r: PlateScanResult) {
-        let clar = appliedCorrections.map { "Correction: \($0)" }
-        if r.items.count == 1, let only = r.items.first {
-            let draft = EntryDraft.fromPlateItem(only, clarifications: clar)
-            draft.photo = captured
-            coordinator.showEditor(draft)
-        } else {
-            let drafts = r.items.map { EntryDraft.fromPlateItem($0, clarifications: clar) }
-            coordinator.showMultiEditor(MultiDraftBox(
-                drafts: drafts, confidence: r.overallConfidence, photo: captured))
+        let totalGrams = r.items.reduce(0) { $0 + $1.estimatedGrams }
+        var totalBlock = NutrientBlock.zero
+        for item in r.items { totalBlock = totalBlock + item.per100g.scaled(toGrams: item.estimatedGrams) }
+        // Re-base the summed totals to per-100g so portion edits scale the meal.
+        let per100g = totalGrams > 0 ? totalBlock.scaled(toGrams: 100 * 100 / totalGrams) : totalBlock
+
+        let dish = r.dish?.trimmingCharacters(in: .whitespaces)
+        let name = (dish?.isEmpty == false ? dish : nil)
+            ?? r.items.max(by: { $0.per100g.kcal * $0.estimatedGrams < $1.per100g.kcal * $1.estimatedGrams })?.name
+            ?? "Logged meal"
+
+        // Breakdown (each component + its kcal) + any corrections, for transparency.
+        var clar = appliedCorrections.map { "Correction: \($0)" }
+        if r.items.count > 1 {
+            clar += r.items.map { "\($0.name) · \(ScranFormat.kcalText($0.per100g.kcal * $0.estimatedGrams / 100))" }
         }
+
+        let draft = EntryDraft(name: name, source: .estimate, confidence: r.overallConfidence,
+                               per100g: per100g, servingSizeG: max(1, totalGrams), quantity: 1,
+                               clarifications: clar)
+        draft.photo = captured
+        coordinator.showEditor(draft)
     }
 
     private func bandCard(_ r: PlateScanResult) -> some View {
@@ -287,9 +298,15 @@ struct PlateScanScreen: View {
             }
             if !appliedCorrections.isEmpty {
                 ForEach(appliedCorrections, id: \.self) { c in
-                    Text("// applied: \(c)")
-                        .font(ScranFont.mono(12, relativeTo: .caption))
-                        .foregroundStyle(ScranColor.estimate)
+                    Label {
+                        Text(c).font(ScranFont.body(13, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.textMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ScranColor.estimate)
+                    }
                 }
             }
         }

@@ -87,9 +87,7 @@ struct HealthTodayCard: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(ScranColor.error)
                         .accessibilityHidden(true)
-                    Text("APPLE HEALTH · TODAY")
-                        .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                        .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                    SectionLabel("Apple Health · today")
                 }
                 HealthStatGrid(snapshot: snapshot)
             }

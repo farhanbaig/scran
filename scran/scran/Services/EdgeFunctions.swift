@@ -93,9 +93,11 @@ struct PlateScanResult: Decodable, Sendable {
     let overallConfidence: Double
     let questions: [Question]
     let scansRemaining: Int?
+    /// AI's short name for the whole plate as one meal ("Porridge with berries").
+    let dish: String?
 
     private enum CodingKeys: String, CodingKey {
-        case status, items, overallConfidence, questions, scansRemaining
+        case status, items, overallConfidence, questions, scansRemaining, dish
     }
     nonisolated init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -104,6 +106,7 @@ struct PlateScanResult: Decodable, Sendable {
         overallConfidence = (try? c.decode(Double.self, forKey: .overallConfidence)) ?? 0
         questions = (try? c.decode([Question].self, forKey: .questions)) ?? []
         scansRemaining = try? c.decode(Int.self, forKey: .scansRemaining)
+        dish = try? c.decode(String.self, forKey: .dish)
     }
 }
 

@@ -22,6 +22,7 @@ final class AppModel {
     let quota = ScanQuota()
     let sync = SyncQueue()
     let network = NetworkMonitor()
+    let reminders = ReminderService()
 
     // App-level UI state.
     var paywallTrigger: String?          // non-nil => present paywall with this trigger
@@ -66,6 +67,7 @@ final class AppModel {
         } else {
             isAuthenticated = false
         }
+        reminders.start(context: context)
         authResolved = true
     }
 
@@ -112,6 +114,7 @@ final class AppModel {
         email = nil
         isAnonymous = false
         isAuthenticated = false
+        reminders.handleSignOut()
         analytics.track(.signedOut)
     }
 
@@ -121,6 +124,7 @@ final class AppModel {
         quota.isPro = entitlements.isPro
         await quota.refresh()
         await sync.syncPending(context: context)
+        await reminders.onForeground()
     }
 
     // MARK: - Paywall

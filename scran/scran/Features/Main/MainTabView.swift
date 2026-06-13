@@ -100,9 +100,7 @@ struct ProgressTabView: View {
     private var currentCard: some View {
         ScranCard(background: ScranColor.panel2, textured: true) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("CURRENT WEIGHT")
-                    .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                    .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                SectionLabel("Current weight")
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(latest > 0 ? String(format: "%.1f", latest) : "—")
                         .font(ScranFont.mono(40, weight: .bold, relativeTo: .largeTitle))
@@ -131,9 +129,7 @@ struct ProgressTabView: View {
         return ScranCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("BODY MASS INDEX")
-                        .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                        .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                    SectionLabel("Body mass index")
                     Spacer()
                     Text(label.uppercased())
                         .font(ScranFont.mono(10, weight: .bold, relativeTo: .caption2))
@@ -211,9 +207,7 @@ struct ProgressTabView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("HISTORY")
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+            SectionLabel("Weigh-ins")
             ForEach(live) { w in
                 HStack {
                     Text(String(format: "%.1f kg", w.weightKg))

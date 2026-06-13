@@ -259,10 +259,15 @@ struct PermissionPrimeScreen: View {
 }
 
 enum OnboardingPermissions {
-    static func requestNotifications() async {
+    /// Returns whether notifications were granted, so the caller can enable
+    /// reminders only when the user actually said yes.
+    @discardableResult
+    static func requestNotifications() async -> Bool {
         #if canImport(UIKit)
-        _ = try? await UNUserNotificationCenter.current()
-            .requestAuthorization(options: [.alert, .sound, .badge])
+        return (try? await UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound])) ?? false
+        #else
+        return false
         #endif
     }
 }

@@ -21,7 +21,7 @@ struct LogSheet: View {
             VStack(alignment: .leading, spacing: 22) {
                 header
 
-                section("SCAN") {
+                section("Scan") {
                     modeRow(kind: .barcode, source: .barcode, icon: "barcode.viewfinder",
                             title: "Scan barcode",
                             subtitle: "Packaged food — checks the UK database.",
@@ -36,7 +36,7 @@ struct LogSheet: View {
                             tag: .ai, requiresNetwork: true, isAI: true)
                 }
 
-                section("QUICK") {
+                section("Quick") {
                     modeRow(kind: .saved, source: .label, icon: "bookmark.fill",
                             title: "Saved meals",
                             subtitle: "One tap to re-log a regular meal.",
@@ -99,9 +99,7 @@ struct LogSheet: View {
 
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.6).foregroundStyle(ScranColor.textMuted)
+            SectionLabel(title)
             VStack(spacing: 10) { content() }
         }
     }

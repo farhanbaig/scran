@@ -144,6 +144,9 @@ struct SavedMealItem: Codable, Hashable, Sendable, Identifiable {
     var per100g: NutrientBlock
     var servingSizeG: Double
     var quantity: Double
+    /// Local photo of the original entry, if any — additive optional, so rows
+    /// saved before this field existed decode as nil.
+    var photoLocalPath: String? = nil
 
     var sourceEnum: EntrySource { EntrySource(rawValue: source) ?? .saved }
     var total: NutrientBlock { per100g.scaled(toGrams: servingSizeG * quantity) }
@@ -152,13 +155,15 @@ struct SavedMealItem: Codable, Hashable, Sendable, Identifiable {
         self.name = entry.name; self.brand = entry.brand; self.source = entry.source
         self.confidence = entry.confidence; self.per100g = entry.per100g
         self.servingSizeG = entry.servingSizeG; self.quantity = entry.quantity
+        self.photoLocalPath = entry.photoLocalPath
     }
 
-    /// Build a fresh FoodEntry to log this snapshot at a given time.
+    /// Build a fresh FoodEntry to log this snapshot at a given time. The photo
+    /// carries over, so a re-logged meal keeps its picture.
     func makeEntry(loggedAt: Date = .now) -> FoodEntry {
         FoodEntry(loggedAt: loggedAt, name: name, brand: brand, source: source,
                   confidence: confidence, per100g: per100g, servingSizeG: servingSizeG,
-                  quantity: quantity, clarifications: [])
+                  quantity: quantity, photoLocalPath: photoLocalPath, clarifications: [])
     }
 }
 

@@ -54,6 +54,7 @@ struct SavedMealsView: View {
             relog(meal)
         } label: {
             HStack(spacing: 14) {
+                mealThumb(meal)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(meal.name)
                         .font(ScranFont.body(16, weight: .bold, relativeTo: .body))
@@ -75,6 +76,36 @@ struct SavedMealsView: View {
             .padding(.vertical, 6)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Photo of the meal where one exists, otherwise a quiet bookmark tile.
+    @ViewBuilder private func mealThumb(_ meal: SavedMeal) -> some View {
+        #if canImport(UIKit)
+        if let path = meal.items.first(where: { $0.photoLocalPath != nil })?.photoLocalPath,
+           let photo = PhotoStore.image(atRelativePath: path) {
+            Image(uiImage: photo)
+                .resizable().scaledToFill()
+                .frame(width: 56, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                .accessibilityHidden(true)
+        } else {
+            fallbackThumb
+        }
+        #else
+        fallbackThumb
+        #endif
+    }
+
+    private var fallbackThumb: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel2)
+                .frame(width: 56, height: 56)
+            Image(systemName: "bookmark.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(ScranColor.verified)
+        }
+        .accessibilityHidden(true)
     }
 
     private var empty: some View {

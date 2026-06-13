@@ -223,8 +223,8 @@ struct OnboardingFlow: View {
                 VStack(spacing: 18) {
                     ScranSegmented(options: [(0.25, "0.25 kg"), (0.5, "0.5 kg"), (0.75, "0.75 kg")],
                                    selection: $d.weeklyRateKg)
-                    Text("// per week")
-                        .font(ScranFont.mono(12, relativeTo: .caption))
+                    Text("per week")
+                        .font(ScranFont.body(13, relativeTo: .footnote))
                         .foregroundStyle(ScranColor.textMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -306,7 +306,16 @@ struct OnboardingFlow: View {
                 title: "Stay on track",
                 subtitle: "A gentle daily nudge to log — never spam, and you can turn it off any time.",
                 primaryTitle: "Enable reminders",
-                onPrimary: { await OnboardingPermissions.requestNotifications(); advance() },
+                onPrimary: {
+                    // Only flip the pref on; actual scheduling waits until the plan
+                    // exists (the plan insert at the end of onboarding triggers it),
+                    // so abandoned sign-ups never get nudged.
+                    if await OnboardingPermissions.requestNotifications() {
+                        app.reminders.setEnabled(true)
+                        app.analytics.track(.remindersEnabled(source: "onboarding"))
+                    }
+                    advance()
+                },
                 onSkip: advance)
 
         case .account:

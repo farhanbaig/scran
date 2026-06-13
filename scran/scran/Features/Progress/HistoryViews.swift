@@ -10,6 +10,9 @@
 
 import SwiftUI
 import SwiftData
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Day aggregation
 
@@ -99,9 +102,7 @@ struct LoggedDaysCard: View {
             ScranCard {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        Text("DAYS LOGGED")
-                            .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                            .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                        SectionLabel("Days logged")
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .semibold))
@@ -201,11 +202,15 @@ struct HistoryListView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 10) {
                 if days.isEmpty {
-                    Text("Nothing logged yet — your days will appear here.")
-                        .font(ScranFont.body(14, relativeTo: .body))
-                        .foregroundStyle(ScranColor.textMuted)
-                        .padding(.top, 40)
-                        .frame(maxWidth: .infinity)
+                    VStack(spacing: 16) {
+                        PlateMark(size: 132)
+                        Text("Nothing logged yet — your days will appear here.")
+                            .font(ScranFont.body(15, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textMuted)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 48)
+                    .frame(maxWidth: .infinity)
                 } else {
                     ForEach(openDays) { day in
                         NavigationLink { DayDetailView(day: day, plan: plan) } label: {
@@ -253,9 +258,38 @@ private struct DayRow: View {
     let day: DayStat
     let target: Double
 
+    #if canImport(UIKit)
+    /// Up to three distinct meal photos from the day (entries from one scan
+    /// share a photo, so de-dupe by path).
+    private var photos: [UIImage] {
+        var seen = Set<String>()
+        var out: [UIImage] = []
+        for e in day.entries {
+            guard out.count < 3, let p = e.photoLocalPath, !seen.contains(p),
+                  let img = PhotoStore.image(atRelativePath: p) else { continue }
+            seen.insert(p); out.append(img)
+        }
+        return out
+    }
+    #endif
+
     var body: some View {
         let verdict = DayVerdict(kcal: day.total.kcal, target: target)
         HStack(spacing: 12) {
+            #if canImport(UIKit)
+            if !photos.isEmpty {
+                HStack(spacing: -12) {
+                    ForEach(Array(photos.enumerated()), id: \.offset) { _, img in
+                        Image(uiImage: img)
+                            .resizable().scaledToFill()
+                            .frame(width: 38, height: 38)
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(ScranColor.bg, lineWidth: 2))
+                    }
+                }
+                .accessibilityHidden(true)
+            }
+            #endif
             VStack(alignment: .leading, spacing: 4) {
                 Text(day.day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
                     .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
@@ -329,9 +363,7 @@ struct DayDetailView: View {
         ScranCard(background: ScranColor.panel2, textured: true) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("THE DAY")
-                        .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                        .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                    SectionLabel("The day")
                     Spacer()
                     if let plan {
                         let verdict = DayVerdict(kcal: day.total.kcal, target: plan.dailyTargetKcal)
@@ -365,12 +397,10 @@ struct DayDetailView: View {
                 if let items = groups[meal], !items.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text(meal.label.uppercased())
-                                .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                                .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                            SectionLabel(meal.label)
                             Spacer()
                             Text(ScranFormat.kcalText(items.reduce(0) { $0 + $1.total.kcal }))
-                                .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
+                                .font(ScranFont.mono(13, weight: .bold, relativeTo: .caption))
                                 .foregroundStyle(ScranColor.textMuted)
                         }
                         ForEach(items) { entry in

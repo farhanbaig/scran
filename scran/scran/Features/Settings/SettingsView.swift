@@ -40,7 +40,9 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
                 accountSection
                 if let plan { planSection(plan) }
+                if let plan { focusSection(plan) }
                 if HealthKitService.isSupported { healthSection }
+                ReminderSettingsCard()
                 appearanceSection
                 subscriptionSection
                 dataSection
@@ -98,6 +100,33 @@ struct SettingsView: View {
                 NavigationLink {
                     PlanEditView(plan: plan)
                 } label: { rowButtonLabel("Edit plan", "slider.horizontal.3") }
+            }
+        }
+    }
+
+    // MARK: - Focus areas
+
+    private func focusSection(_ plan: UserPlan) -> some View {
+        let selected = FocusArea.allCases.filter { plan.focus.contains($0) }
+        return SettingsCard(title: "Your focus") {
+            NavigationLink {
+                FocusEditView(plan: plan)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(selected.isEmpty ? "Not set" : selected.map(\.label).joined(separator: ", "))
+                            .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textPrimary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Which numbers Clearo highlights for you")
+                            .font(ScranFont.body(12, relativeTo: .caption))
+                            .foregroundStyle(ScranColor.textMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(ScranColor.textMuted)
+                }
+                .padding(.vertical, 4)
             }
         }
     }
@@ -256,9 +285,10 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         SettingsCard(title: "Your data") {
-            settingsButton("Export as CSV", "square.and.arrow.up") { exportCSV() }
-            Text("// your food log belongs to you — export is always free")
-                .font(ScranFont.mono(11, relativeTo: .caption2)).foregroundStyle(ScranColor.textMuted)
+            settingsButton("Export food log (CSV)", "square.and.arrow.up") { exportCSV() }
+            settingsButton("Export weight log (CSV)", "scalemass") { exportWeights() }
+            Text("Your data belongs to you — export is always free.")
+                .font(ScranFont.body(13, relativeTo: .footnote)).foregroundStyle(ScranColor.textMuted)
         }
     }
 
@@ -294,7 +324,9 @@ struct SettingsView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 10) {
+            ClearoMark(size: 44)
+                .opacity(0.85)
             Text("Clearo · built in Kent by Wireside Studios Ltd")
                 .font(ScranFont.mono(11, relativeTo: .caption2))
             Text("v\(Bundle.main.appVersion)")
@@ -354,6 +386,16 @@ struct SettingsView: View {
         }
     }
 
+    private func exportWeights() {
+        do {
+            let url = try DataExport.exportWeightsCSV(context: context)
+            app.analytics.track(.exportCSV)
+            exportFile = ExportFile(url: url)
+        } catch {
+            app.crash.capture(error, context: ["action": "export_weights_csv"])
+        }
+    }
+
     private func openSupport() {
         app.analytics.track(.supportOpened)
         let subject = "Clearo support".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
@@ -372,6 +414,7 @@ struct SettingsView: View {
             try await AccountService.deleteAccount(context: context)
             Haptics.success()
             // Return to the auth wall — the account and its data are gone.
+            app.reminders.handleSignOut()
             app.email = nil
             app.isAuthenticated = false
         } catch {
@@ -388,9 +431,7 @@ struct SettingsCard<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(title.uppercased())
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+            SectionLabel(title)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -33,6 +33,21 @@ enum ScranFormat {
     static func kcalText(_ value: Double) -> String { "\(int(value)) kcal" }
 }
 
+// MARK: - Section label
+
+/// Calm sentence-case section header. Replaces the old mono-caps eyebrows —
+/// ALL-CAPS + tracking is now reserved for badges (SourceBadge, LevelChip,
+/// PRO/FREE) and at most one hero eyebrow per screen, so labels stop shouting.
+struct SectionLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(ScranFont.body(14, weight: .semibold, relativeTo: .subheadline))
+            .foregroundStyle(ScranColor.textPrimary)
+    }
+}
+
 // MARK: - Card
 
 struct ScranCard<Content: View>: View {

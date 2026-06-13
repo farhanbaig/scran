@@ -84,22 +84,19 @@ extension RootView {
             satFatLimitG: 20, fibreTargetG: 30,
             focusAreas: [FocusArea.heart.rawValue, FocusArea.bloodSugar.rawValue])
         context.insert(plan)
-        let breakfast: [(String, NutrientBlock, Double)] = [
-            ("Porridge (oats + semi-skimmed milk)",
-             NutrientBlock(kcal: 80, proteinG: 3.5, carbsG: 12, fatG: 2.1,
-                           satFatG: 1.0, fibreG: 1.4, sugarG: 4.6, saltG: 0.1), 260),
-            ("Sliced banana (half a banana)",
-             NutrientBlock(kcal: 89, proteinG: 1.1, carbsG: 23, fatG: 0.3,
-                           satFatG: 0.1, fibreG: 2.6, sugarG: 12, saltG: 0), 59),
-            ("Strawberries (4, sliced)",
-             NutrientBlock(kcal: 32, proteinG: 0.7, carbsG: 7.7, fatG: 0.3,
-                           satFatG: 0, fibreG: 2, sugarG: 4.9, saltG: 0), 48),
+        // One meal = one entry (a scan logs as a single combined dish).
+        let meals: [(String, NutrientBlock, Double, String)] = [
+            ("Porridge with berries",
+             NutrientBlock(kcal: 76, proteinG: 2.9, carbsG: 14, fatG: 1.6,
+                           satFatG: 0.7, fibreG: 1.7, sugarG: 6.3, saltG: 0.1), 367,
+             EntrySource.estimate.rawValue),
             ("Cheeseburger",
              NutrientBlock(kcal: 263, proteinG: 13, carbsG: 21, fatG: 14,
-                           satFatG: 6.2, fibreG: 1.2, sugarG: 3.5, saltG: 1.3), 250),
+                           satFatG: 6.2, fibreG: 1.2, sugarG: 3.5, saltG: 1.3), 250,
+             EntrySource.estimate.rawValue),
         ]
-        for (name, per100g, grams) in breakfast {
-            context.insert(FoodEntry(name: name, source: EntrySource.estimate.rawValue,
+        for (name, per100g, grams, source) in meals {
+            context.insert(FoodEntry(name: name, source: source,
                                      confidence: 0.9, per100g: per100g, servingSizeG: grams))
         }
         // A week of varied past days so Progress/history shows real verdicts.

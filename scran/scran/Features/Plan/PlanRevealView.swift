@@ -136,9 +136,7 @@ struct PlanRevealView: View {
     private var targetsCard: some View {
         ScranCard {
             VStack(alignment: .leading, spacing: 12) {
-                Text("DAILY TARGETS")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                SectionLabel("Daily targets")
                 targetRow("Protein", ScranFormat.grams(plan.proteinTargetG))
                 targetRow("Carbohydrate", ScranFormat.grams(plan.carbsTargetG))
                 targetRow("Fat", ScranFormat.grams(plan.fatTargetG))
@@ -164,9 +162,7 @@ struct PlanRevealView: View {
         let projection = abs(delta) > 0 ? plan.weeklyRateKg * 12 : 0
         return ScranCard {
             VStack(alignment: .leading, spacing: 8) {
-                Text("PROJECTED")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                SectionLabel("Projected")
                 if projection > 0 {
                     Text("At \(rateText)/week, about \(String(format: "%.1f", projection)) kg over 12 weeks.")
                         .font(ScranFont.body(15, relativeTo: .body))
