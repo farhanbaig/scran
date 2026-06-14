@@ -34,6 +34,7 @@ struct OnboardingFlow: View {
     @State private var revealPlan: UserPlan?
     @State private var healthImporting = false
     @State private var healthImported = false
+    @State private var healthSexImported = false
     @State private var showSignIn = false
 
     /// Ordered funnel. Rate step is conditional on a non-maintain goal.
@@ -119,11 +120,10 @@ struct OnboardingFlow: View {
                     else { Task { await importHealth(into: d) } }
                 }) {
                 VStack(spacing: 20) {
-                    HealthSyncArt().frame(maxWidth: .infinity)
                     if healthImported {
-                        Label("Imported \(importedSummary(d))", systemImage: "checkmark.circle.fill")
-                            .font(ScranFont.body(14, weight: .semibold, relativeTo: .footnote))
-                            .foregroundStyle(ScranColor.verified)
+                        HealthImportedSummary(stats: importedStats(d))
+                    } else {
+                        HealthSyncArt().frame(maxWidth: .infinity)
                     }
                 }
             }
@@ -357,13 +357,22 @@ struct OnboardingFlow: View {
 
     // MARK: - Apple Health step
 
-    private func importedSummary(_ d: OnboardingDraft) -> String {
-        var parts: [String] = []
-        if d.heightCm > 50 { parts.append("\(Int(d.heightCm)) cm") }
-        if d.weightKg > 20 { parts.append(String(format: "%.1f kg", d.weightKg)) }
+    private func importedStats(_ d: OnboardingDraft) -> [HealthStat] {
+        var s: [HealthStat] = []
+        if let sex = importedSex(d) {
+            s.append(HealthStat(icon: "person.fill", label: "Sex", value: sex))
+        }
         let age = PlanCalculator.age(from: d.dateOfBirth)
-        if age > 0 { parts.append("age \(age)") }
-        return parts.isEmpty ? "Tap Continue to carry on" : parts.joined(separator: " · ")
+        if age > 0 { s.append(HealthStat(icon: "calendar", label: "Age", value: "\(age) yrs")) }
+        if d.heightCm > 50 { s.append(HealthStat(icon: "ruler.fill", label: "Height", value: "\(Int(d.heightCm)) cm")) }
+        if d.weightKg > 20 { s.append(HealthStat(icon: "scalemass.fill", label: "Weight", value: String(format: "%.1f kg", d.weightKg))) }
+        return s
+    }
+
+    /// Sex label only when Health actually supplied it (tracked at import time).
+    private func importedSex(_ d: OnboardingDraft) -> String? {
+        guard healthSexImported else { return nil }
+        return d.sex == .female ? "Female" : "Male"
     }
 
     private func importHealth(into d: OnboardingDraft) async {
@@ -371,7 +380,9 @@ struct OnboardingFlow: View {
         defer { healthImporting = false }
         guard await HealthKitService.shared.requestAuthorization() else { return }
         let snap = await HealthKitService.shared.snapshot()
-        if let s = snap.biologicalSex, let sex = BiologicalSex(rawValue: s) { d.sex = sex }
+        if let s = snap.biologicalSex, let sex = BiologicalSex(rawValue: s) {
+            d.sex = sex; healthSexImported = true
+        }
         if let dob = snap.dateOfBirth { d.dateOfBirth = dob }
         if let h = snap.heightCm, h > 50 { d.heightCm = h }
         if let w = snap.weightKg, w > 20 { d.weightKg = w }
@@ -463,5 +474,72 @@ private struct WelcomeScreen: View {
                 .padding(.top, 10).padding(.bottom, 8)
         }
         .scranScreen()
+    }
+}
+
+// MARK: - Imported-from-Health animated summary
+
+struct HealthStat: Identifiable {
+    let id = UUID()
+    let icon: String
+    let label: String
+    let value: String
+}
+
+/// Shows the values pulled from Apple Health, revealing each row one-by-one so
+/// the user can see exactly what the app imported.
+private struct HealthImportedSummary: View {
+    let stats: [HealthStat]
+    @State private var headerShown = false
+    @State private var revealed = 0
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(ScranColor.positive)
+                Text("Pulled from Apple Health")
+                    .font(ScranFont.body(15, weight: .bold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textPrimary)
+                Spacer()
+            }
+            .opacity(headerShown ? 1 : 0)
+            .offset(y: headerShown ? 0 : -6)
+
+            VStack(spacing: 10) {
+                ForEach(Array(stats.enumerated()), id: \.element.id) { i, s in
+                    HStack(spacing: 12) {
+                        Image(systemName: s.icon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(ScranColor.textPrimary)
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(ScranColor.panel))
+                        Text(s.label)
+                            .font(ScranFont.body(15, weight: .medium, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textMuted)
+                        Spacer()
+                        Text(s.value)
+                            .font(ScranFont.mono(17, weight: .bold, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textPrimary)
+                            .contentTransition(.numericText())
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
+                    .opacity(i < revealed ? 1 : 0)
+                    .offset(x: i < revealed ? 0 : 28)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .task {
+            withAnimation(.snappy(duration: 0.3)) { headerShown = true }
+            for i in 1...max(1, stats.count) {
+                try? await Task.sleep(nanoseconds: 320_000_000)
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { revealed = i }
+                Haptics.selection()
+            }
+        }
     }
 }

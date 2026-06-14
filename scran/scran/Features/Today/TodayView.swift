@@ -143,8 +143,10 @@ struct TodayView: View {
                             SectionLabel(meal.label)
                             Spacer()
                             Text(ScranFormat.kcalText(items.reduce(0) { $0 + $1.total.kcal }))
-                                .font(ScranFont.mono(17, weight: .bold, relativeTo: .body))
-                                .foregroundStyle(ScranColor.verified)
+                                .font(ScranFont.mono(15, weight: .bold, relativeTo: .footnote))
+                                .foregroundStyle(ScranColor.positive)
+                                .padding(.horizontal, 9).padding(.vertical, 3)
+                                .background(Capsule().fill(ScranColor.positive.opacity(0.14)))
                         }
                         ForEach(items) { entry in
                             EntryRow(entry: entry, flag: plan?.highFlag(for: entry.total))

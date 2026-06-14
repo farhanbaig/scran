@@ -15,7 +15,11 @@ import SwiftData
 final class UserPlan {
     @Attribute(.unique) var id: UUID
     var heightCm: Double
-    var weightKg: Double
+    var weightKg: Double            // current weight — drives the live plan maths
+    /// The weight the journey began at — a fixed baseline for "started at / since
+    /// start", independent of later weigh-ins. Defaults to 0 for plans created
+    /// before this field existed; `journeyStartWeightKg` falls back to weightKg.
+    var startWeightKg: Double = 0
     var dateOfBirth: Date
     var biologicalSex: String      // BiologicalSex.rawValue
     var activityLevel: String      // ActivityLevel.rawValue
@@ -37,7 +41,8 @@ final class UserPlan {
     var updatedAt: Date
     var syncState: String
 
-    init(id: UUID = UUID(), heightCm: Double, weightKg: Double, dateOfBirth: Date,
+    init(id: UUID = UUID(), heightCm: Double, weightKg: Double, startWeightKg: Double? = nil,
+         dateOfBirth: Date,
          biologicalSex: String, activityLevel: String, weeklyWorkouts: Int, goal: String,
          weeklyRateKg: Double, bmr: Double, tdee: Double, dailyTargetKcal: Double,
          proteinTargetG: Double, carbsTargetG: Double, fatTargetG: Double,
@@ -46,6 +51,7 @@ final class UserPlan {
          explanationVersion: Int = 0, createdAt: Date = .now, updatedAt: Date = .now,
          syncState: String = SyncState.pending.rawValue) {
         self.id = id; self.heightCm = heightCm; self.weightKg = weightKg
+        self.startWeightKg = startWeightKg ?? weightKg
         self.dateOfBirth = dateOfBirth; self.biologicalSex = biologicalSex
         self.activityLevel = activityLevel; self.weeklyWorkouts = weeklyWorkouts
         self.goal = goal; self.weeklyRateKg = weeklyRateKg; self.bmr = bmr; self.tdee = tdee
@@ -69,6 +75,17 @@ final class UserPlan {
         PlanInput(heightCm: heightCm, weightKg: weightKg, age: age, sex: sex,
                   activity: activity, weeklyWorkouts: weeklyWorkouts, goal: goalEnum,
                   weeklyRateKg: weeklyRateKg)
+    }
+
+    /// Fixed journey baseline. Falls back to current weight for legacy plans.
+    var journeyStartWeightKg: Double { startWeightKg > 0 ? startWeightKg : weightKg }
+
+    /// The daily calorie target this plan would set at a given body weight — used
+    /// to show how the target shifts as weight changes (start → now).
+    func dailyTarget(atWeightKg w: Double) -> Double {
+        var i = input
+        i.weightKg = w
+        return PlanCalculator.calculate(i).dailyTargetKcal
     }
 
     /// Recompute all derived numbers from current inputs and stamp a new version.

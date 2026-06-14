@@ -70,8 +70,6 @@ struct EmptyMealArt: View {
 
     var body: some View {
         ZStack {
-            RadialGlow(diameter: size * 1.5)
-
             ForkShape()
                 .fill(tint.opacity(0.9))
                 .frame(width: size * 0.16, height: size * 0.62)
@@ -94,7 +92,7 @@ struct EmptyMealArt: View {
                 .font(.system(size: size * 0.13, weight: .bold))
                 .foregroundStyle(ScranColor.onVerified)
                 .frame(width: size * 0.24, height: size * 0.24)
-                .background(Circle().fill(tint).shadow(color: tint.opacity(0.5), radius: size * 0.05))
+                .background(Circle().fill(tint))
                 .offset(x: size * 0.22, y: -size * 0.22)
         }
         .frame(width: size, height: size)
@@ -109,7 +107,6 @@ struct SavedMealArt: View {
 
     var body: some View {
         ZStack {
-            RadialGlow(diameter: size * 1.4)
             Circle().fill(ScranColor.verifiedDim)
                 .frame(width: size * 0.7, height: size * 0.7)
             Circle().strokeBorder(tint, lineWidth: size * 0.04)
@@ -117,7 +114,6 @@ struct SavedMealArt: View {
             Image(systemName: "bookmark.fill")
                 .font(.system(size: size * 0.3, weight: .semibold))
                 .foregroundStyle(tint)
-                .shadow(color: tint.opacity(0.4), radius: size * 0.04)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -131,7 +127,6 @@ struct TrendArt: View {
 
     var body: some View {
         ZStack {
-            RadialGlow(diameter: size * 1.4)
             Circle().fill(ScranColor.verifiedDim)
                 .frame(width: size * 0.7, height: size * 0.7)
             Circle().strokeBorder(tint, lineWidth: size * 0.04)
@@ -139,7 +134,6 @@ struct TrendArt: View {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: size * 0.28, weight: .semibold))
                 .foregroundStyle(tint)
-                .shadow(color: tint.opacity(0.4), radius: size * 0.04)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

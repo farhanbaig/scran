@@ -52,6 +52,16 @@ final class AppModel {
         guard !didBootstrap else { return }
         didBootstrap = true
 
+        // Keychain items survive app deletion on iOS, so a reinstall would silently
+        // restore the old session. UserDefaults IS wiped on delete — use a flag to
+        // detect a fresh install and clear the stored token first, so a deleted app
+        // really does sign the user out.
+        let launchedKey = "clearo.hasLaunchedBefore"
+        if !UserDefaults.standard.bool(forKey: launchedKey) {
+            await SupabaseClient.shared.signOutAndWipeLocalSession()
+            UserDefaults.standard.set(true, forKey: launchedKey)
+        }
+
         crash.bootstrap()
         network.start()
 

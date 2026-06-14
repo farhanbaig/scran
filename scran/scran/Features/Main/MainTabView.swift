@@ -56,6 +56,8 @@ struct ProgressTabView: View {
 
     @State private var showLogWeight = false
     @State private var draftWeight: Double = 80
+    @State private var showEditStart = false
+    @State private var draftStart: Double = 80
 
     private var plan: UserPlan? { plans.first }
     private var live: [WeightEntry] { weights.filter { $0.deletedAt == nil } }
@@ -83,6 +85,7 @@ struct ProgressTabView: View {
                 currentCard
                 WeightTrendChart(entries: live)
                 if let plan, latest > 0 { bmiCard(heightCm: plan.heightCm, weightKg: latest) }
+                recentActivityCard
                 noteCard
                 if !live.isEmpty { historySection }
             }
@@ -97,11 +100,12 @@ struct ProgressTabView: View {
             .padding(20).scranBottomBar()
         }
         .sheet(isPresented: $showLogWeight) { logWeightSheet }
+        .sheet(isPresented: $showEditStart) { editStartSheet }
     }
 
     private var currentCard: some View {
         ScranCard {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 14) {
                 SectionLabel("Current weight")
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(latest > 0 ? String(format: "%.1f", latest) : "—")
@@ -110,13 +114,137 @@ struct ProgressTabView: View {
                     Text("kg").font(ScranFont.mono(16, relativeTo: .body))
                         .foregroundStyle(ScranColor.textMuted)
                 }
+
                 if let plan {
-                    Text("Plan started at \(String(format: "%.1f", plan.weightKg)) kg · goal \(plan.goalEnum.label.lowercased())")
-                        .font(ScranFont.body(13, relativeTo: .footnote))
-                        .foregroundStyle(ScranColor.textMuted)
+                    let start = plan.journeyStartWeightKg
+                    let change = latest - start
+
+                    // Start → now → change, so the journey is explicit (not just
+                    // "started at" overwritten by the latest weigh-in).
+                    HStack(spacing: 0) {
+                        journeyStat("Start", String(format: "%.1f kg", start))
+                        statDivider
+                        journeyStat("Now", latest > 0 ? String(format: "%.1f kg", latest) : "—")
+                        statDivider
+                        journeyStat("Change", abs(change) < 0.05
+                                    ? "0.0 kg"
+                                    : String(format: "%@%.1f kg", change < 0 ? "−" : "+", abs(change)))
+                    }
+
+                    targetShiftLine(plan: plan, start: start)
+
+                    Button { draftStart = start; showEditStart = true } label: {
+                        Label("Edit starting weight", systemImage: "pencil")
+                            .font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.textPrimary)
+                    }
+                    .padding(.top, 2)
                 }
             }
         }
+    }
+
+    private func journeyStat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label.uppercased())
+                .font(ScranFont.mono(10, weight: .bold, relativeTo: .caption2))
+                .tracking(0.6)
+                .foregroundStyle(ScranColor.textMuted)
+            Text(value)
+                .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
+                .foregroundStyle(ScranColor.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var statDivider: some View {
+        Rectangle().fill(ScranColor.line).frame(width: 1, height: 28)
+    }
+
+    /// Honest line: the calorie target tracks body weight, so as weight moves the
+    /// daily target moves with it. Shows the start → now shift when it differs.
+    @ViewBuilder private func targetShiftLine(plan: UserPlan, start: Double) -> some View {
+        let startTarget = plan.dailyTarget(atWeightKg: start)
+        let nowTarget = plan.dailyTargetKcal
+        let moved = abs(nowTarget - startTarget) >= 1
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: moved ? "arrow.up.arrow.down" : "target")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(ScranColor.textMuted)
+            Text(moved
+                 ? "Your daily target tracks your weight — it's moved \(ScranFormat.int(startTarget)) → \(ScranFormat.int(nowTarget)) kcal since you started."
+                 : "Goal: \(plan.goalEnum.label.lowercased()) · daily target \(ScranFormat.int(nowTarget)) kcal.")
+                .font(ScranFont.body(13, relativeTo: .footnote))
+                .foregroundStyle(ScranColor.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Recent activity (meals + weigh-ins, newest first)
+
+    private struct ActivityItem: Identifiable {
+        let id: UUID
+        let date: Date
+        let icon: String
+        let title: String
+        let trailing: String
+    }
+
+    private var activity: [ActivityItem] {
+        var items: [ActivityItem] = []
+        for e in foodEntries {
+            items.append(ActivityItem(id: e.id, date: e.loggedAt, icon: e.sourceEnum.glyph,
+                                      title: e.name, trailing: ScranFormat.kcalText(e.total.kcal)))
+        }
+        for w in live {
+            items.append(ActivityItem(id: w.id, date: w.date, icon: "scalemass",
+                                      title: "Weighed in", trailing: String(format: "%.1f kg", w.weightKg)))
+        }
+        return items.sorted { $0.date > $1.date }
+    }
+
+    private var recentActivityCard: some View {
+        ScranCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionLabel("Recent activity")
+                let recent = Array(activity.prefix(8))
+                if recent.isEmpty {
+                    Text("Your logged meals and weigh-ins will appear here.")
+                        .font(ScranFont.body(14, relativeTo: .footnote))
+                        .foregroundStyle(ScranColor.textMuted)
+                } else {
+                    ForEach(Array(recent.enumerated()), id: \.element.id) { i, item in
+                        if i > 0 { Rectangle().fill(ScranColor.line).frame(height: 1) }
+                        activityRow(item)
+                    }
+                }
+            }
+        }
+    }
+
+    private func activityRow(_ item: ActivityItem) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: item.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(ScranColor.textPrimary)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(ScranColor.panel))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .lineLimit(1)
+                Text(item.date.formatted(.relative(presentation: .named)))
+                    .font(ScranFont.body(12, relativeTo: .caption))
+                    .foregroundStyle(ScranColor.textMuted)
+            }
+            Spacer(minLength: 8)
+            Text(item.trailing)
+                .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
+                .foregroundStyle(ScranColor.textPrimary)
+                .fixedSize()
+        }
+        .padding(.vertical, 6)
     }
 
     // MARK: - BMI
@@ -195,7 +323,7 @@ struct ProgressTabView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "info.circle.fill").foregroundStyle(ScranColor.database)
                 .accessibilityHidden(true)
-            Text("Weigh in weekly. Once we have a few weeks of data we'll recalibrate your target from what actually happens — not a black-box formula.")
+            Text("Weigh in weekly. Each weigh-in recalculates your daily target from your real weight — so as you lose or gain, the plan moves with you. No black-box formula.")
                 .font(ScranFont.body(14, relativeTo: .footnote))
                 .foregroundStyle(ScranColor.textMuted)
         }
@@ -211,13 +339,7 @@ struct ProgressTabView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                SectionLabel("Weigh-ins")
-                Spacer()
-                Text("Swipe to delete")
-                    .font(ScranFont.body(12, relativeTo: .caption2))
-                    .foregroundStyle(ScranColor.textMuted)
-            }
+            SectionLabel("Weigh-ins")
             List {
                 ForEach(live) { w in
                     weighInRow(w)
@@ -228,6 +350,7 @@ struct ProgressTabView: View {
                             Button(role: .destructive) { deleteWeight(w) } label: {
                                 Label("Delete", systemImage: "trash")
                             }
+                            .tint(.red)
                         }
                 }
             }
@@ -277,10 +400,58 @@ struct ProgressTabView: View {
         .scranAppearance()
     }
 
+    private var editStartSheet: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Text("Set the weight you began your journey at. This is the baseline for your progress — it doesn't change your daily target, which tracks your latest weigh-in.")
+                    .font(ScranFont.body(14, relativeTo: .footnote))
+                    .foregroundStyle(ScranColor.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20).padding(.top, 16)
+                RulerSlider(value: $draftStart, range: 35...200, step: 0.1, unit: "kg")
+                Spacer()
+                PrimaryButton(title: "Save starting weight", systemImage: "checkmark") { saveStart() }
+                    .padding(20)
+            }
+            .scranScreen()
+            .navigationTitle("Starting weight")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(ScranColor.bg, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { showEditStart = false }.foregroundStyle(ScranColor.textMuted)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .scranAppearance()
+    }
+
+    private func saveStart() {
+        if let plan {
+            plan.startWeightKg = draftStart
+            plan.syncState = SyncState.pending.rawValue
+            plan.updatedAt = .now
+            try? context.save()
+            let ctx = context
+            Task { await app.sync.syncPending(context: ctx) }
+        }
+        Haptics.success()
+        showEditStart = false
+    }
+
     private func saveWeight() {
         let entry = WeightEntry(date: .now, weightKg: draftWeight)
         context.insert(entry)
-        if let plan { plan.weightKg = draftWeight; plan.syncState = SyncState.pending.rawValue }
+        if let plan {
+            // Preserve the journey baseline (capture it once for legacy plans),
+            // then move the live weight + recompute so the calorie target shifts
+            // with the new weight.
+            if plan.startWeightKg <= 0 { plan.startWeightKg = plan.weightKg }
+            plan.weightKg = draftWeight
+            plan.recompute()
+        }
         try? context.save()
         Haptics.success()
         showLogWeight = false
