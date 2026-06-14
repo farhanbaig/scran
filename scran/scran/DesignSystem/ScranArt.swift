@@ -10,6 +10,33 @@
 
 import SwiftUI
 
+// MARK: - Clearo logo mark
+
+/// The brand mark: the calorie ring opened into a "C" — a ring with nothing to
+/// hide — with the plate-dot at its centre. Drawn so it stays crisp at any size
+/// and adapts to light/dark. The app icon is this same mark rendered to PNG.
+struct ClearoMark: View {
+    var size: CGFloat = 150
+    /// The C opening, centred on the right, in degrees.
+    private let gap: Double = 76
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0, to: (360 - gap) / 360)
+                .stroke(ScranColor.verified,
+                        style: StrokeStyle(lineWidth: size * 0.135, lineCap: .round))
+                .rotationEffect(.degrees(gap / 2))   // centre the opening at 0° (right)
+                .frame(width: size * 0.78, height: size * 0.78)
+            Circle()
+                .fill(ScranColor.verified)
+                .frame(width: size * 0.21, height: size * 0.21)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Signature "sourced plate" illustration
 
 /// The brand idea as art: a plate (centre disc) whose food is broken into its
@@ -23,10 +50,6 @@ struct PlateMark: View {
 
     var body: some View {
         ZStack {
-            RadialGradient(gradient: Gradient(colors: [ScranColor.verified.opacity(0.12), .clear]),
-                           center: .center, startRadius: 0, endRadius: size * 0.52)
-                .frame(width: size, height: size)
-
             // Slow data-dot halo.
             DottedRing(count: 40, dotRadius: size * 0.011)
                 .fill(ScranColor.lineStrong)
@@ -41,7 +64,6 @@ struct PlateMark: View {
             Circle().fill(ScranColor.panel)
                 .frame(width: size * 0.5, height: size * 0.5)
                 .overlay(Circle().strokeBorder(ScranColor.line, lineWidth: 1))
-                .shadow(color: .black.opacity(0.06), radius: 8, y: 3)
 
             // The three sources, plated.
             HStack(spacing: size * 0.05) {
@@ -64,7 +86,6 @@ struct PlateMark: View {
     private func sourceDot(_ c: Color) -> some View {
         Circle().fill(c)
             .frame(width: size * 0.05, height: size * 0.05)
-            .shadow(color: c.opacity(0.5), radius: size * 0.02)
     }
 }
 
@@ -171,14 +192,16 @@ struct HealthSyncArt: View {
                 .stroke(ScranColor.textPrimary, style: .init(lineWidth: 2, lineCap: .round))
                 .frame(width: 200, height: 200)
 
-            // Scran tile (top-right).
+            // Scran/Clearo tile (top-right) — the app-icon C-mark. Drawn in `bg`
+            // (the inverse of the ink tile) so it stays visible in both modes,
+            // mirroring the real mono app icon.
             tile(dark: true) {
                 ZStack {
-                    Circle().stroke(ScranColor.lineStrong, lineWidth: 5).frame(width: 40, height: 40)
+                    Circle().stroke(ScranColor.bg.opacity(0.28), lineWidth: 5).frame(width: 40, height: 40)
                     Circle().trim(from: 0, to: 0.72)
-                        .stroke(ScranColor.verified, style: .init(lineWidth: 5, lineCap: .round))
+                        .stroke(ScranColor.bg, style: .init(lineWidth: 5, lineCap: .round))
                         .rotationEffect(.degrees(-90)).frame(width: 40, height: 40)
-                    Circle().fill(ScranColor.verified).frame(width: 11, height: 11)
+                    Circle().fill(ScranColor.bg).frame(width: 11, height: 11)
                 }
             }
             .offset(x: 78, y: -70)
@@ -195,7 +218,6 @@ struct HealthSyncArt: View {
             // Central checkmark.
             ZStack {
                 Circle().fill(ScranColor.textPrimary).frame(width: 46, height: 46)
-                    .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
                 Image(systemName: "checkmark")
                     .font(.system(size: 20, weight: .heavy))
                     .foregroundStyle(ScranColor.bg)
@@ -216,7 +238,6 @@ struct HealthSyncArt: View {
             .frame(width: 92, height: 92)
             .overlay(content())
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(ScranColor.line))
-            .shadow(color: .black.opacity(0.10), radius: 12, y: 5)
     }
 
     private func label(_ text: String, x: CGFloat, y: CGFloat) -> some View {

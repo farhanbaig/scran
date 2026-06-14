@@ -68,7 +68,6 @@ struct RulerSlider: View {
                 .overlay(alignment: .center) {
                     Rectangle().fill(ScranColor.verified)
                         .frame(width: 3, height: 52)
-                        .shadow(color: ScranColor.verified.opacity(0.6), radius: 6)
                 }
             }
             .frame(height: 64)

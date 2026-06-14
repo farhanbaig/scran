@@ -22,6 +22,7 @@ final class AppModel {
     let quota = ScanQuota()
     let sync = SyncQueue()
     let network = NetworkMonitor()
+    let reminders = ReminderService()
 
     // App-level UI state.
     var paywallTrigger: String?          // non-nil => present paywall with this trigger
@@ -51,6 +52,16 @@ final class AppModel {
         guard !didBootstrap else { return }
         didBootstrap = true
 
+        // Keychain items survive app deletion on iOS, so a reinstall would silently
+        // restore the old session. UserDefaults IS wiped on delete — use a flag to
+        // detect a fresh install and clear the stored token first, so a deleted app
+        // really does sign the user out.
+        let launchedKey = "clearo.hasLaunchedBefore"
+        if !UserDefaults.standard.bool(forKey: launchedKey) {
+            await SupabaseClient.shared.signOutAndWipeLocalSession()
+            UserDefaults.standard.set(true, forKey: launchedKey)
+        }
+
         crash.bootstrap()
         network.start()
 
@@ -66,6 +77,7 @@ final class AppModel {
         } else {
             isAuthenticated = false
         }
+        reminders.start(context: context)
         authResolved = true
     }
 
@@ -112,6 +124,7 @@ final class AppModel {
         email = nil
         isAnonymous = false
         isAuthenticated = false
+        reminders.handleSignOut()
         analytics.track(.signedOut)
     }
 
@@ -121,6 +134,7 @@ final class AppModel {
         quota.isPro = entitlements.isPro
         await quota.refresh()
         await sync.syncPending(context: context)
+        await reminders.onForeground()
     }
 
     // MARK: - Paywall

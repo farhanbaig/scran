@@ -72,6 +72,7 @@ final class SyncQueue {
                 "protein_target_g": p.proteinTargetG, "carbs_target_g": p.carbsTargetG,
                 "fat_target_g": p.fatTargetG, "sat_fat_limit_g": p.satFatLimitG,
                 "fibre_target_g": p.fibreTargetG,
+                "focus_areas": p.focusAreas,
                 "explanation": p.explanation ?? NSNull(),
                 "explanation_version": p.explanationVersion,
                 "updated_at": iso.string(from: p.updatedAt),
@@ -205,6 +206,7 @@ final class SyncQueue {
             let bmr: Double; let tdee: Double; let daily_target_kcal: Double
             let protein_target_g: Double; let carbs_target_g: Double; let fat_target_g: Double
             let sat_fat_limit_g: Double; let fibre_target_g: Double
+            let focus_areas: [String]?
             let explanation: String?; let explanation_version: Int?
             let created_at: String?; let updated_at: String?
         }
@@ -224,7 +226,8 @@ final class SyncQueue {
                 bmr: r.bmr, tdee: r.tdee, dailyTargetKcal: r.daily_target_kcal,
                 proteinTargetG: r.protein_target_g, carbsTargetG: r.carbs_target_g,
                 fatTargetG: r.fat_target_g, satFatLimitG: r.sat_fat_limit_g,
-                fibreTargetG: r.fibre_target_g, explanation: r.explanation,
+                fibreTargetG: r.fibre_target_g, focusAreas: r.focus_areas ?? [],
+                explanation: r.explanation,
                 explanationVersion: r.explanation_version ?? 0,
                 createdAt: parseISO(r.created_at) ?? .now, updatedAt: parseISO(r.updated_at) ?? .now,
                 syncState: SyncState.synced.rawValue))

@@ -67,8 +67,11 @@ enum ScranColor {
     // colour and relies on size/weight for hierarchy instead of a muted grey.
     static let textMuted   = textPrimary
 
-    static let verified    = adaptive(Color(hex: "1E8F5C"), Color(hex: "34B779"))
-    static let verifiedDim = adaptive(Color(hex: "1E8F5C", opacity: 0.12), Color(hex: "34B779", opacity: 0.14))
+    // Brand/chrome accent is monochrome "ink" (black-first in light, off-white in
+    // dark). Green has been retired everywhere as a brand colour — the only colour
+    // left is the functional source/status palette below + real food photography.
+    static let verified    = adaptive(Color(hex: "16191D"), Color(hex: "F4F2EC"))
+    static let verifiedDim = adaptive(Color(hex: "16191D", opacity: 0.10), Color(hex: "F4F2EC", opacity: 0.14))
     static let database    = adaptive(Color(hex: "3D66D6"), Color(hex: "6B9BFF"))
     static let databaseDim = adaptive(Color(hex: "3D66D6", opacity: 0.10), Color(hex: "6B9BFF", opacity: 0.13))
     static let estimate    = adaptive(Color(hex: "B07514"), Color(hex: "E8A94C"))
@@ -77,6 +80,10 @@ enum ScranColor {
 
     /// Text colour that sits on top of a filled `verified` CTA.
     static let onVerified  = adaptive(Color(hex: "FFFFFF"), Color(hex: "06140D"))
+
+    /// Affirmative/"on" accent — system green. Reintroduced only for positive
+    /// states (reminder toggles, "AI scans left"); brand/chrome stays monochrome.
+    static let positive    = Color.green
 
     /// Very faint fill for decorative numerals/watermarks (visible in both modes).
     static let ghost       = adaptive(Color.black.opacity(0.05), Color.white.opacity(0.06))

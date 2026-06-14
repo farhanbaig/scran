@@ -15,15 +15,21 @@ struct EntryDetailSheet: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    @Query(sort: [SortDescriptor(\UserPlan.createdAt, order: .reverse)])
+    private var plans: [UserPlan]
+    private var plan: UserPlan? { plans.first }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 #if canImport(UIKit)
                 if let photo = PhotoStore.image(atRelativePath: entry.photoLocalPath) {
+                    // Fill the full-width 300pt frame edge to edge — minor
+                    // cropping is fine here in exchange for a clean, dense card.
                     Image(uiImage: photo)
                         .resizable().scaledToFill()
                         .frame(maxWidth: .infinity)
-                        .frame(height: 200)
+                        .frame(height: 300)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
                         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(ScranColor.line))
                         .accessibilityLabel("Photo of \(entry.name)")
@@ -41,26 +47,32 @@ struct EntryDetailSheet: View {
                         .foregroundStyle(ScranColor.textMuted)
                 }
 
-                ScranCard(background: ScranColor.panel2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(ScranFormat.int(entry.total.kcal))
-                            .font(ScranFont.mono(36, weight: .bold, relativeTo: .largeTitle))
-                            .foregroundStyle(ScranColor.verified)
-                            .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
-                            .contentTransition(.numericText())
-                        Text("kcal").font(ScranFont.mono(15, relativeTo: .body))
-                            .foregroundStyle(ScranColor.textMuted)
-                        Spacer()
+                ScranCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(ScranFormat.int(entry.total.kcal))
+                                .font(ScranFont.mono(36, weight: .bold, relativeTo: .largeTitle))
+                                .foregroundStyle(ScranColor.verified)
+                                .contentTransition(.numericText())
+                            Text("kcal").font(ScranFont.mono(15, relativeTo: .body))
+                                .foregroundStyle(ScranColor.textMuted)
+                            Spacer()
+                        }
                         MacroTriple(protein: entry.total.proteinG, carbs: entry.total.carbsG,
                                     fat: entry.total.fatG)
                     }
                     .animation(.snappy(duration: 0.2), value: entry.total.kcal)
                 }
 
+                if let plan {
+                    FocusInsightCard(meal: entry.total, plan: plan)
+                }
+
                 ScranCard {
                     VStack(spacing: 16) {
-                        ScranStepper(label: "Serving size", value: $entry.servingSizeG, step: 10,
-                                     range: 1...5000, format: { ScranFormat.grams($0) })
+                        ScranStepper(label: "Serving size", value: $entry.servingSizeG,
+                                     range: 1...5000, unit: "grams", editable: true, adaptive: true,
+                                     format: { ScranFormat.grams($0) })
                         Divider().overlay(ScranColor.line)
                         ScranStepper(label: "Quantity", value: $entry.quantity, step: 0.5,
                                      range: 0.5...50,
@@ -71,12 +83,11 @@ struct EntryDetailSheet: View {
                 if !entry.clarifications.isEmpty {
                     ScranCard {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("CLARIFIED")
-                                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                                .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                            SectionLabel("Clarified")
                             ForEach(entry.clarifications, id: \.self) { c in
-                                Text("// \(c)").font(ScranFont.mono(12, relativeTo: .caption))
+                                Text(c).font(ScranFont.body(13, relativeTo: .footnote))
                                     .foregroundStyle(ScranColor.textMuted)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }

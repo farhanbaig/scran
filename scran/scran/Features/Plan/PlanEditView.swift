@@ -14,7 +14,6 @@ struct PlanEditView: View {
     @Environment(\.modelContext) private var context
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
-    @Environment(ChromeVisibility.self) private var chrome: ChromeVisibility?
 
     // Local editable copies so the live plan only changes on Save.
     @State private var sex: BiologicalSex
@@ -102,12 +101,12 @@ struct PlanEditView: View {
             PrimaryButton(title: "Save & update plan", systemImage: "checkmark") { save() }
                 .padding(20).scranBottomBar()
         }
-        .onAppear { chrome?.tabBarHidden = true }
-        .onDisappear { chrome?.tabBarHidden = false }
+        // Pinned Save button needs the full bottom edge.
+        .toolbar(.hidden, for: .tabBar)
     }
 
     private var preview: some View {
-        ScranCard(background: ScranColor.panel2) {
+        ScranCard {
             HStack {
                 Text("New daily target").font(ScranFont.body(14, relativeTo: .body))
                     .foregroundStyle(ScranColor.textMuted)

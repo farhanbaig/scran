@@ -29,7 +29,7 @@ struct PaywallView: View {
                 header
                 if trigger == "quota" {
                     ScranBanner(kind: .info,
-                                text: "You've used today's 3 free AI scans. Barcode and manual logging still work — or go unlimited.")
+                                text: "You've used today's \(ScranConfig.freeDailyScans) free AI scans. Barcode and manual logging still work — or go unlimited.")
                 }
                 freeCard
                 proCard
@@ -41,13 +41,27 @@ struct PaywallView: View {
                     .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
                     .frame(maxWidth: .infinity).padding(.top, 4)
+
+                // Required on subscription screens (App Review 3.1.2): renewal
+                // terms plus tappable Terms of Use and Privacy Policy links.
+                VStack(spacing: 6) {
+                    Text("Subscriptions renew automatically until cancelled. Manage or cancel any time in your App Store account settings.")
+                        .font(ScranFont.body(11, relativeTo: .caption2))
+                        .foregroundStyle(ScranColor.textMuted)
+                        .multilineTextAlignment(.center)
+                    HStack(spacing: 16) {
+                        Link("Terms of Use", destination: ScranConfig.termsURL)
+                        Link("Privacy Policy", destination: ScranConfig.privacyURL)
+                    }
+                    .font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
+                    .tint(ScranColor.textMuted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
             }
             .padding(20).padding(.bottom, 30)
         }
-        .background(
-            ScranColor.bg.ignoresSafeArea()
-                .overlay(alignment: .top) { RadialGlow(diameter: 460).offset(y: -80) }
-        )
+        .background(ScranColor.bg.ignoresSafeArea())
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
@@ -61,7 +75,7 @@ struct PaywallView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Eyebrow(text: "Scran Pro", color: ScranColor.verified, ruleColor: ScranColor.verified)
+            Eyebrow(text: "Clearo Pro", color: ScranColor.verified, ruleColor: ScranColor.verified)
             Text("Unlimited scans. Same honest numbers.")
                 .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)
@@ -84,7 +98,7 @@ struct PaywallView: View {
                     .foregroundStyle(ScranColor.textMuted)
                 featureList([
                     "Unlimited barcode & manual logging",
-                    "3 AI scans every day",
+                    "\(ScranConfig.freeDailyScans) AI scans every day",
                     "10 saved meals, one-tap re-log",
                     "Your data, exportable as CSV",
                 ])
@@ -93,7 +107,7 @@ struct PaywallView: View {
     }
 
     private var proCard: some View {
-        ScranCard(background: ScranColor.panel2, border: ScranColor.verified.opacity(0.5)) {
+        ScranCard(border: ScranColor.verified.opacity(0.5)) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("PRO").font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
                     .tracking(1.6).foregroundStyle(ScranColor.verified)
@@ -130,7 +144,6 @@ struct PaywallView: View {
                 .fill(LinearGradient(colors: [ScranColor.verified.opacity(0.07), .clear],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
         )
-        .shadow(color: ScranColor.verified.opacity(0.35), radius: 30, y: 16)
     }
 
     private var promise: some View {

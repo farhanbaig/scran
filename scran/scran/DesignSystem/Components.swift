@@ -33,11 +33,87 @@ enum ScranFormat {
     static func kcalText(_ value: Double) -> String { "\(int(value)) kcal" }
 }
 
+// MARK: - Section label
+
+/// Calm sentence-case section header. Replaces the old mono-caps eyebrows —
+/// ALL-CAPS + tracking is now reserved for badges (SourceBadge, LevelChip,
+/// PRO/FREE) and at most one hero eyebrow per screen, so labels stop shouting.
+struct SectionLabel: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(ScranFont.body(17, weight: .bold, relativeTo: .headline))
+            .foregroundStyle(ScranColor.textPrimary)
+    }
+}
+
+// MARK: - Flow layout (wrapping chips)
+
+/// Lays children left-to-right, wrapping to the next line when they don't fit.
+/// Used for chip rows (e.g. the Settings "Your focus" summary).
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, lineHeight: CGFloat = 0
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 { x = 0; y += lineHeight + lineSpacing; lineHeight = 0 }
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        return CGSize(width: maxWidth == .infinity ? x : maxWidth, height: y + lineHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, lineHeight: CGFloat = 0
+        for s in subviews {
+            let size = s.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX, x > bounds.minX { x = bounds.minX; y += lineHeight + lineSpacing; lineHeight = 0 }
+            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+    }
+}
+
+// MARK: - AI scan quota pill
+
+/// Shows remaining free AI scans. Subtle tinted pill while scans remain; when
+/// exhausted it's a high-contrast solid red pill — a clear, highlighted stop.
+/// Shared by Today and the Log sheet.
+struct QuotaPill: View {
+    let remaining: Int
+    var body: some View {
+        let exhausted = remaining <= 0
+        let tint = exhausted ? ScranColor.error : (remaining <= 1 ? ScranColor.estimate : ScranColor.positive)
+        HStack(spacing: 7) {
+            Image(systemName: exhausted ? "exclamationmark.circle.fill" : "sparkles")
+                .font(.system(size: 13, weight: .bold))
+                .accessibilityHidden(true)
+            Text(exhausted ? "No AI scans left today"
+                           : "\(remaining) AI \(remaining == 1 ? "scan" : "scans") left today")
+                .font(ScranFont.body(13, weight: .bold, relativeTo: .footnote))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(Capsule().fill(tint))
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Card
 
 struct ScranCard<Content: View>: View {
-    var background: Color = ScranColor.panel
-    var border: Color = ScranColor.line
+    /// Defaults to the screen colour (white in light mode); separation comes from
+    /// a soft shadow + hairline border, not a grey fill.
+    var background: Color = ScranColor.bg
+    var border: Color = ScranColor.lineStrong
     var padding: CGFloat = 20
     var cornerRadius: CGFloat = 20
     /// Lays a faint dot-grid "graph paper" texture behind the content.
@@ -108,7 +184,7 @@ struct SecondaryButton: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .foregroundStyle(ScranColor.textPrimary)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.panel))
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.bg))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(ScranColor.lineStrong, lineWidth: 1))
         }
@@ -126,11 +202,13 @@ struct ScranHeader: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
-                .foregroundStyle(ScranColor.textPrimary)
+                .foregroundStyle(ScranColor.verified)
             if let subtitle {
                 Text(subtitle)
-                    .font(ScranFont.body(14, relativeTo: .footnote))
-                    .foregroundStyle(ScranColor.textMuted)
+                    .font(ScranFont.body(15, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -177,7 +255,24 @@ struct ScranStepper: View {
     var step: Double = 1
     var range: ClosedRange<Double> = 0...100000
     var unit: String = ""
+    /// Tap the value to type an exact number on a keypad.
+    var editable: Bool = false
+    /// +/- step scales with magnitude (small/medium/large) instead of a fixed step.
+    var adaptive: Bool = false
     var format: (Double) -> String
+
+    @State private var editing = false
+    @State private var draft = ""
+
+    /// Step that grows with the value so big and small portions both adjust fast.
+    private var effectiveStep: Double {
+        guard adaptive else { return step }
+        switch value {
+        case ..<50:  return 5
+        case ..<200: return 10
+        default:     return 25
+        }
+    }
 
     var body: some View {
         HStack {
@@ -187,18 +282,54 @@ struct ScranStepper: View {
             Spacer()
             HStack(spacing: 14) {
                 stepButton(systemName: "minus") {
-                    value = max(range.lowerBound, value - step)
+                    value = max(range.lowerBound, value - effectiveStep)
                 }
-                Text(format(value))
-                    .font(ScranFont.mono(16, weight: .bold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textPrimary)
-                    .frame(minWidth: 64)
-                    .contentTransition(.numericText())
+                valueLabel
                 stepButton(systemName: "plus") {
-                    value = min(range.upperBound, value + step)
+                    value = min(range.upperBound, value + effectiveStep)
                 }
             }
         }
+        // Exact entry via a native alert — an explicit "Set" button applies it.
+        // Avoids keyboard-toolbar focus conflicts (no flaky "Done").
+        .alert(label, isPresented: $editing) {
+            TextField("Value", text: $draft)
+                .keyboardType(.decimalPad)
+            Button("Set") { commitEdit() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(unit.isEmpty ? "Type an exact value." : "Type an exact value in \(unit).")
+        }
+    }
+
+    @ViewBuilder private var valueLabel: some View {
+        Text(format(value))
+            .font(ScranFont.mono(16, weight: .bold, relativeTo: .body))
+            .foregroundStyle(ScranColor.textPrimary)
+            .frame(minWidth: 64)
+            .contentTransition(.numericText())
+            .overlay(alignment: .bottom) {
+                if editable {
+                    Rectangle().fill(ScranColor.lineStrong)
+                        .frame(height: 1).offset(y: 4)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard editable else { return }
+                draft = value == value.rounded() ? String(Int(value)) : String(value)
+                editing = true
+                Haptics.selection()
+            }
+            .accessibilityAddTraits(editable ? .isButton : [])
+            .accessibilityHint(editable ? "Tap to type an exact value" : "")
+    }
+
+    private func commitEdit() {
+        if let n = Double(draft.replacingOccurrences(of: ",", with: ".")) {
+            value = min(range.upperBound, max(range.lowerBound, n))
+        }
+        editing = false
     }
 
     private func stepButton(systemName: String, action: @escaping () -> Void) -> some View {
@@ -210,7 +341,7 @@ struct ScranStepper: View {
                 .font(.system(size: 14, weight: .bold))
                 .frame(width: 34, height: 34)
                 .foregroundStyle(ScranColor.textPrimary)
-                .background(Circle().fill(ScranColor.panel2))
+                .background(Circle().fill(ScranColor.bg))
                 .overlay(Circle().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
                 .padding(5)  // 44pt hit target (HIG minimum); circle stays 34pt
                 .contentShape(Circle())

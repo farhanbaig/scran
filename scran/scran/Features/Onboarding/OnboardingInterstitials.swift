@@ -37,7 +37,6 @@ struct AffirmationScreen: View {
                 Image(systemName: icon)
                     .font(.system(size: 64, weight: .regular))
                     .foregroundStyle(ScranColor.verified)
-                    .shadow(color: ScranColor.verified.opacity(0.5), radius: 16)
             }
             Text(title)
                 .font(ScranFont.display(30, relativeTo: .largeTitle))
@@ -64,7 +63,7 @@ struct AffirmationScreen: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.panel))
+                .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))
                 .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.line))
                 .padding(.horizontal, 24).padding(.top, 24)
             }
@@ -130,7 +129,6 @@ struct HonestPlanLoadingScreen: View {
                             Text("\(ScranFormat.int(output.dailyTargetKcal)) kcal")
                                 .font(ScranFont.mono(20, weight: .bold, relativeTo: .title3))
                                 .foregroundStyle(ScranColor.verified)
-                                .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                         }
                         .transition(.opacity)
                     } else {
@@ -144,9 +142,11 @@ struct HonestPlanLoadingScreen: View {
                     }
                 }
                 .padding(22)
+                .frame(maxWidth: .infinity)
                 .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             Spacer()
         }
@@ -184,7 +184,7 @@ struct SocialProofScreen: View {
         OnboardingScaffold(
             progress: progress, onBack: onBack,
             title: "We read the one-star reviews so you don't live them",
-            subtitle: "Scran is built against the four failures of the big AI calorie apps. Each one is a design rule here.",
+            subtitle: "Clearo is built against the four failures of the big AI calorie apps. Each one is a design rule here.",
             ctaTitle: "Continue", onContinue: onContinue
         ) {
             VStack(spacing: 12) {
@@ -195,7 +195,7 @@ struct SocialProofScreen: View {
                             .foregroundStyle(ScranColor.textMuted)
                     }
                     .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.panel))
+                    .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.line))
                 }
                 HStack(spacing: 8) {
@@ -233,7 +233,6 @@ struct PermissionPrimeScreen: View {
                 RadialGlow(diameter: 300)
                 Image(systemName: icon).font(.system(size: 58))
                     .foregroundStyle(ScranColor.verified)
-                    .shadow(color: ScranColor.verified.opacity(0.5), radius: 16)
             }
             Text(title)
                 .font(ScranFont.display(28, relativeTo: .largeTitle)).textCase(.uppercase)
@@ -259,10 +258,15 @@ struct PermissionPrimeScreen: View {
 }
 
 enum OnboardingPermissions {
-    static func requestNotifications() async {
+    /// Returns whether notifications were granted, so the caller can enable
+    /// reminders only when the user actually said yes.
+    @discardableResult
+    static func requestNotifications() async -> Bool {
         #if canImport(UIKit)
-        _ = try? await UNUserNotificationCenter.current()
-            .requestAuthorization(options: [.alert, .sound, .badge])
+        return (try? await UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound])) ?? false
+        #else
+        return false
         #endif
     }
 }

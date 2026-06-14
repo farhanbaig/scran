@@ -38,8 +38,6 @@ struct EquationBlock: View {
                         .font(ScranFont.mono(row.isTotal ? 19 : 14, weight: .bold,
                                              relativeTo: row.isTotal ? .title3 : .body))
                         .foregroundStyle(row.isTotal ? ScranColor.verified : ScranColor.textPrimary)
-                        .shadow(color: row.isTotal ? ScranColor.verified.opacity(0.5) : .clear,
-                                radius: row.isTotal ? 12 : 0)
                 }
                 .padding(.vertical, row.isTotal ? 0 : 7)
             }
@@ -64,6 +62,6 @@ struct EquationBlock: View {
         EquationRow(label: "Daily target", value: "1,982 kcal", isTotal: true),
     ])
     .padding(24)
-    .background(ScranColor.panel2)
+    .background(ScranColor.bg)
     .preferredColorScheme(.dark)
 }

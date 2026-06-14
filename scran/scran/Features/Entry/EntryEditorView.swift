@@ -85,16 +85,13 @@ struct EntryEditorView: View {
     }
 
     private var totalsCard: some View {
-        ScranCard(background: ScranColor.panel2) {
+        ScranCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("THIS ENTRY")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                SectionLabel("This entry")
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(ScranFormat.int(draft.total.kcal))
                         .font(ScranFont.mono(40, weight: .bold, relativeTo: .largeTitle))
                         .foregroundStyle(ScranColor.verified)
-                        .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                         .contentTransition(.numericText())
                     Text("kcal").font(ScranFont.mono(16, relativeTo: .body))
                         .foregroundStyle(ScranColor.textMuted)
@@ -113,12 +110,17 @@ struct EntryEditorView: View {
     private var portionCard: some View {
         ScranCard {
             VStack(spacing: 16) {
-                ScranStepper(label: "Serving size", value: $draft.servingSizeG, step: 10,
-                             range: 1...5000, format: { ScranFormat.grams($0) })
+                ScranStepper(label: "Serving size", value: $draft.servingSizeG,
+                             range: 1...5000, unit: "grams", editable: true, adaptive: true,
+                             format: { ScranFormat.grams($0) })
                     .onChange(of: draft.servingSizeG) { _, _ in app.analytics.track(.entryPortionEdited) }
                 Divider().overlay(ScranColor.line)
                 ScranStepper(label: "Quantity", value: $draft.quantity, step: 0.5,
                              range: 0.5...50, format: { $0 == $0.rounded() ? "\(Int($0))×" : String(format: "%.1f×", $0) })
+                Text("Tap a number to type it exactly.")
+                    .font(ScranFont.body(12, relativeTo: .caption2))
+                    .foregroundStyle(ScranColor.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -165,9 +167,9 @@ struct EntryEditorView: View {
                         .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                         .foregroundStyle(ScranColor.textPrimary)
                 }
-                .tint(ScranColor.verified)
+                .tint(ScranColor.positive)
                 if draft.saveAsMeal {
-                    TextField("Meal name (e.g. Tuesday daal)", text: $draft.mealName)
+                    TextField("Meal name (e.g. Weekday lunch)", text: $draft.mealName)
                         .font(ScranFont.body(15, relativeTo: .body))
                         .padding(12)
                         .background(RoundedRectangle(cornerRadius: 10).fill(ScranColor.bg))
@@ -275,27 +277,64 @@ struct EntryEditorView: View {
     }
 }
 
-/// Compact macro readout used on cards.
+/// Macro readout used on cards: tinted icon tile + full word + grams, one
+/// column per macro. Same icon language as the bars and focus rows.
 struct MacroTriple: View {
     let protein: Double
     let carbs: Double
     let fat: Double
 
     var body: some View {
-        HStack(spacing: 18) {
-            macro("P", protein)
-            macro("C", carbs)
-            macro("F", fat)
+        HStack(spacing: 10) {
+            macro("Protein", MacroGlyph.protein, ScranColor.verified, protein)
+            macro("Carbs", MacroGlyph.carbs, ScranColor.database, carbs)
+            macro("Fat", MacroGlyph.fat, ScranColor.estimate, fat)
         }
     }
 
-    private func macro(_ letter: String, _ grams: Double) -> some View {
-        HStack(spacing: 6) {
-            Text(letter).font(ScranFont.mono(12, relativeTo: .caption))
-                .foregroundStyle(ScranColor.textMuted)
-            Text(ScranFormat.grams(grams))
-                .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
-                .foregroundStyle(ScranColor.textPrimary)
+    private func macro(_ name: String, _ icon: String, _ tint: Color, _ grams: Double) -> some View {
+        HStack(spacing: 8) {
+            NutrientTile(icon: icon, tint: tint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(ScranFormat.grams(grams))
+                    .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text(name)
+                    .font(ScranFont.body(11, relativeTo: .caption2))
+                    .foregroundStyle(ScranColor.textMuted)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name) \(ScranFormat.grams(grams))")
+    }
+}
+
+/// One icon per nutrient, used everywhere a nutrient appears so the language
+/// stays consistent: dumbbell protein, bolt carbs (fuel), droplet fat, heart
+/// saturated fat, cube sugar, leaf fibre, sparkle salt.
+enum MacroGlyph {
+    static let protein = "dumbbell.fill"
+    static let carbs = "bolt.fill"
+    static let fat = "drop.fill"
+}
+
+/// Small tinted rounded tile holding a nutrient icon.
+struct NutrientTile: View {
+    let icon: String
+    let tint: Color
+    var size: CGFloat = 28
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+                .fill(tint.opacity(0.14))
+                .frame(width: size, height: size)
+            Image(systemName: icon)
+                .font(.system(size: size * 0.46, weight: .semibold))
+                .foregroundStyle(tint)
+        }
+        .accessibilityHidden(true)
     }
 }

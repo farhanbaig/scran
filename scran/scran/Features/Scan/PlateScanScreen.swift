@@ -40,8 +40,9 @@ struct PlateScanScreen: View {
             case .capturing:
                 PhotoCaptureScreen(
                     title: "Photograph the plate",
-                    instruction: "Frame the whole plate from above",
+                    instruction: "Shoot straight down — fit the whole plate inside the box.",
                     accent: ScranColor.estimate,
+                    guide: .plate,
                     onCapture: { process($0) },
                     onCancel: { coordinator.cancel() })
             case .processing:
@@ -83,11 +84,9 @@ struct PlateScanScreen: View {
 
                 if !r.questions.isEmpty { questionsSection(r) }
 
-                Text("ITEMS")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+                SectionLabel("Items")
                 Text("Tap an item to fix what it is.")
-                    .font(ScranFont.body(12, relativeTo: .caption2))
+                    .font(ScranFont.body(13, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
                 ForEach(r.items) { item in
                     itemRow(item)
@@ -99,11 +98,38 @@ struct PlateScanScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             PrimaryButton(title: "Review & log", systemImage: "arrow.right") {
-                let draft = combinedDraft(r)
-                coordinator.showEditor(draft)
+                review(r)
             }
             .padding(20).scranBottomBar()
         }
+    }
+
+    /// A scan logs as ONE meal entry. We decompose server-side for accuracy then
+    /// blend the components back into a single entry here — the per-item list is
+    /// kept in the entry's clarifications so the breakdown isn't lost.
+    private func review(_ r: PlateScanResult) {
+        let totalGrams = r.items.reduce(0) { $0 + $1.estimatedGrams }
+        var totalBlock = NutrientBlock.zero
+        for item in r.items { totalBlock = totalBlock + item.per100g.scaled(toGrams: item.estimatedGrams) }
+        // Re-base the summed totals to per-100g so portion edits scale the meal.
+        let per100g = totalGrams > 0 ? totalBlock.scaled(toGrams: 100 * 100 / totalGrams) : totalBlock
+
+        let dish = r.dish?.trimmingCharacters(in: .whitespaces)
+        let name = (dish?.isEmpty == false ? dish : nil)
+            ?? r.items.max(by: { $0.per100g.kcal * $0.estimatedGrams < $1.per100g.kcal * $1.estimatedGrams })?.name
+            ?? "Logged meal"
+
+        // Breakdown (each component + its kcal) + any corrections, for transparency.
+        var clar = appliedCorrections.map { "Correction: \($0)" }
+        if r.items.count > 1 {
+            clar += r.items.map { "\($0.name) · \(ScranFormat.kcalText($0.per100g.kcal * $0.estimatedGrams / 100))" }
+        }
+
+        let draft = EntryDraft(name: name, source: .estimate, confidence: r.overallConfidence,
+                               per100g: per100g, servingSizeG: max(1, totalGrams), quantity: 1,
+                               clarifications: clar)
+        draft.photo = captured
+        coordinator.showEditor(draft)
     }
 
     private func bandCard(_ r: PlateScanResult) -> some View {
@@ -111,7 +137,7 @@ struct PlateScanScreen: View {
         let conf = r.overallConfidence
         let spread = total * (1 - conf) * 0.6
         let low = max(0, total - spread), high = total + spread
-        return ScranCard(background: ScranColor.panel2) {
+        return ScranCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text("roughly")
                     .font(ScranFont.body(13, relativeTo: .footnote)).foregroundStyle(ScranColor.textMuted)
@@ -139,15 +165,14 @@ struct PlateScanScreen: View {
                     .foregroundStyle(ScranColor.textMuted)
 
                 ForEach(r.questions) { q in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text(q.prompt)
                             .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
                             .foregroundStyle(ScranColor.textPrimary)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(q.options, id: \.self) { opt in
-                                    optionChip(opt, selected: isSelected(q, opt)) { toggle(q, opt) }
-                                }
+                        // Wrap so every option is visible — no hidden horizontal scroll.
+                        FlowLayout(spacing: 8, lineSpacing: 8) {
+                            ForEach(q.options, id: \.self) { opt in
+                                optionChip(opt, selected: isSelected(q, opt)) { toggle(q, opt) }
                             }
                         }
                     }
@@ -163,12 +188,20 @@ struct PlateScanScreen: View {
 
     private func optionChip(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: { Haptics.selection(); action() }) {
-            Text(label)
-                .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
-                .padding(.vertical, 9).padding(.horizontal, 16)
-                .foregroundStyle(selected ? ScranColor.bg : ScranColor.textPrimary)
-                .background(Capsule().fill(selected ? ScranColor.estimate : ScranColor.panel))
-                .overlay(Capsule().strokeBorder(ScranColor.estimate.opacity(0.5), lineWidth: 1))
+            HStack(spacing: 6) {
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                Text(label)
+                    .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+            }
+            .padding(.vertical, 9).padding(.horizontal, 15)
+            .foregroundStyle(selected ? ScranColor.onVerified : ScranColor.estimate)
+            // Selected = solid amber; unselected = amber-tinted (never grey).
+            .background(Capsule().fill(selected ? ScranColor.estimate : ScranColor.estimateDim))
+            .overlay(Capsule().strokeBorder(ScranColor.estimate.opacity(selected ? 0 : 0.5),
+                                            lineWidth: 1.5))
         }
         .buttonStyle(PressableStyle())
     }
@@ -217,8 +250,8 @@ struct PlateScanScreen: View {
                                     Image(systemName: "arrow.right").foregroundStyle(ScranColor.estimate)
                                 }
                                 .padding(14)
-                                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
                             }
                             .buttonStyle(PressableStyle())
                         }
@@ -227,8 +260,8 @@ struct PlateScanScreen: View {
                 TextField("Or type what it is…", text: $itemCorrectionText)
                     .font(ScranFont.body(15, relativeTo: .body))
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
                 PrimaryButton(title: "Recalculate", systemImage: "arrow.triangle.2.circlepath",
                               enabled: !itemCorrectionText.trimmingCharacters(in: .whitespaces).isEmpty) {
                     correctItem(item, to: itemCorrectionText.trimmingCharacters(in: .whitespaces))
@@ -273,9 +306,15 @@ struct PlateScanScreen: View {
             }
             if !appliedCorrections.isEmpty {
                 ForEach(appliedCorrections, id: \.self) { c in
-                    Text("// applied: \(c)")
-                        .font(ScranFont.mono(12, relativeTo: .caption))
-                        .foregroundStyle(ScranColor.estimate)
+                    Label {
+                        Text(c).font(ScranFont.body(13, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.textMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ScranColor.estimate)
+                    }
                 }
             }
         }
@@ -294,8 +333,8 @@ struct PlateScanScreen: View {
                     .font(ScranFont.body(15, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.panel))
-                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                    .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
                 Spacer()
                 PrimaryButton(title: "Recalculate", systemImage: "arrow.triangle.2.circlepath",
                               enabled: !correctionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
@@ -357,7 +396,7 @@ struct PlateScanScreen: View {
                         .foregroundStyle(ScranColor.estimate)
                     Image(systemName: "pencil")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(ScranColor.textMuted.opacity(0.6))
+                        .foregroundStyle(ScranColor.estimate)
                         .accessibilityHidden(true)
                 }
             }
@@ -367,22 +406,6 @@ struct PlateScanScreen: View {
     }
 
     // MARK: - Logic
-
-    private func combinedDraft(_ r: PlateScanResult) -> EntryDraft {
-        // Merge plate items into a single entry (per-100g blended over total grams).
-        let totalGrams = r.items.reduce(0) { $0 + $1.estimatedGrams }
-        var totalBlock = NutrientBlock.zero
-        for item in r.items { totalBlock = totalBlock + item.per100g.scaled(toGrams: item.estimatedGrams) }
-        let per100g = totalGrams > 0 ? totalBlock.scaled(toGrams: 100 * 100 / totalGrams) : totalBlock
-        let clar = appliedCorrections.map { "Correction: \($0)" }
-        let name = r.items.count == 1 ? r.items[0].name
-            : r.items.prefix(2).map(\.name).joined(separator: " + ") + (r.items.count > 2 ? " +" : "")
-        let draft = EntryDraft(name: name, source: .estimate, confidence: r.overallConfidence,
-                               per100g: per100g, servingSizeG: totalGrams, quantity: 1,
-                               clarifications: clar)
-        draft.photo = captured
-        return draft
-    }
 
     /// Honest, actionable copy per failure mode — never a bare "something went wrong".
     private static func scanErrorMessage(_ error: Error, isOnline: Bool) -> String {

@@ -49,6 +49,26 @@ enum DataExport {
         return url
     }
 
+    /// Build a CSV of all (non-deleted) weight entries, oldest first.
+    @MainActor
+    static func exportWeightsCSV(context: ModelContext) throws -> URL {
+        let descriptor = FetchDescriptor<WeightEntry>(
+            sortBy: [SortDescriptor(\.date, order: .forward)])
+        let entries = (try? context.fetch(descriptor))?.filter { $0.deletedAt == nil } ?? []
+
+        let iso = ISO8601DateFormatter()
+        var rows = ["date,weight_kg"]
+        for e in entries {
+            rows.append("\(iso.string(from: e.date)),\(String(format: "%.2f", e.weightKg))")
+        }
+
+        let csv = rows.joined(separator: "\n")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clearo-weights-\(Int(Date().timeIntervalSince1970)).csv")
+        try csv.data(using: .utf8)?.write(to: url)
+        return url
+    }
+
     private static func csvEscape(_ s: String) -> String {
         guard s.contains(",") || s.contains("\"") || s.contains("\n") else { return s }
         return "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\""

@@ -40,7 +40,9 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
                 accountSection
                 if let plan { planSection(plan) }
+                if let plan { focusSection(plan) }
                 if HealthKitService.isSupported { healthSection }
+                ReminderSettingsCard()
                 appearanceSection
                 subscriptionSection
                 dataSection
@@ -50,7 +52,7 @@ struct SettingsView: View {
                 footer
             }
             .padding(20)
-            .padding(.bottom, ScranTabBar.contentHeight + 16)
+            .padding(.bottom, 16)
         }
         .scranScreen()
         .toolbar(.hidden, for: .navigationBar)
@@ -102,6 +104,50 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Focus areas
+
+    private func focusSection(_ plan: UserPlan) -> some View {
+        let selected = FocusArea.allCases.filter { plan.focus.contains($0) }
+        return SettingsCard(title: "Your focus") {
+            NavigationLink {
+                FocusEditView(plan: plan)
+            } label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Which numbers Clearo highlights for you")
+                            .font(ScranFont.body(13, relativeTo: .footnote))
+                            .foregroundStyle(ScranColor.textMuted)
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundStyle(ScranColor.textMuted)
+                    }
+                    if selected.isEmpty {
+                        Text("Not set — tap to choose")
+                            .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
+                            .foregroundStyle(ScranColor.textPrimary)
+                    } else {
+                        FlowLayout(spacing: 8, lineSpacing: 8) {
+                            ForEach(selected) { area in focusChip(area) }
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private func focusChip(_ area: FocusArea) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: area.icon)
+                .font(.system(size: 12, weight: .semibold))
+            Text(area.shortLabel)
+                .font(ScranFont.body(14, weight: .semibold, relativeTo: .footnote))
+        }
+        .foregroundStyle(ScranColor.verified)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(Capsule().fill(ScranColor.verifiedDim))
+        .overlay(Capsule().strokeBorder(ScranColor.verified.opacity(0.3), lineWidth: 1))
+    }
+
     // MARK: - Account
 
     private var accountSection: some View {
@@ -134,7 +180,7 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(ScranColor.textPrimary)
                     .padding(.vertical, 12).padding(.horizontal, 14)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.panel2))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.bg))
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.lineStrong))
                 }
             }
@@ -230,7 +276,7 @@ struct SettingsView: View {
     private var subscriptionSection: some View {
         SettingsCard(title: "Subscription") {
             HStack {
-                Text(app.isPro ? "Scran Pro" : "Free plan")
+                Text(app.isPro ? "Clearo Pro" : "Free plan")
                     .font(ScranFont.body(16, weight: .bold, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
                 Spacer()
@@ -256,9 +302,10 @@ struct SettingsView: View {
 
     private var dataSection: some View {
         SettingsCard(title: "Your data") {
-            settingsButton("Export as CSV", "square.and.arrow.up") { exportCSV() }
-            Text("// your food log belongs to you — export is always free")
-                .font(ScranFont.mono(11, relativeTo: .caption2)).foregroundStyle(ScranColor.textMuted)
+            settingsButton("Export food log (CSV)", "square.and.arrow.up") { exportCSV() }
+            settingsButton("Export weight log (CSV)", "scalemass") { exportWeights() }
+            Text("Your data belongs to you — export is always free.")
+                .font(ScranFont.body(13, relativeTo: .footnote)).foregroundStyle(ScranColor.textMuted)
         }
     }
 
@@ -294,8 +341,10 @@ struct SettingsView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: 4) {
-            Text("Scran · built in Kent by Wireside Studios Ltd")
+        VStack(spacing: 10) {
+            ClearoMark(size: 44)
+                .opacity(0.85)
+            Text("Clearo · built in Kent by Wireside Studios Ltd")
                 .font(ScranFont.mono(11, relativeTo: .caption2))
             Text("v\(Bundle.main.appVersion)")
                 .font(ScranFont.mono(11, relativeTo: .caption2))
@@ -313,7 +362,7 @@ struct SettingsView: View {
         }
         .foregroundStyle(ScranColor.textPrimary)
         .frame(maxWidth: .infinity).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.panel2))
+        .background(RoundedRectangle(cornerRadius: 12).fill(ScranColor.bg))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(ScranColor.lineStrong))
     }
 
@@ -354,10 +403,20 @@ struct SettingsView: View {
         }
     }
 
+    private func exportWeights() {
+        do {
+            let url = try DataExport.exportWeightsCSV(context: context)
+            app.analytics.track(.exportCSV)
+            exportFile = ExportFile(url: url)
+        } catch {
+            app.crash.capture(error, context: ["action": "export_weights_csv"])
+        }
+    }
+
     private func openSupport() {
         app.analytics.track(.supportOpened)
-        let subject = "Scran support".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let body = "\n\n—\nDiagnostic ID: \(diagnosticId)\nApp: Scran v\(Bundle.main.appVersion)"
+        let subject = "Clearo support".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let body = "\n\n—\nDiagnostic ID: \(diagnosticId)\nApp: Clearo v\(Bundle.main.appVersion)"
             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         #if canImport(UIKit)
         if let url = URL(string: "mailto:\(ScranConfig.supportEmail)?subject=\(subject)&body=\(body)") {
@@ -372,6 +431,7 @@ struct SettingsView: View {
             try await AccountService.deleteAccount(context: context)
             Haptics.success()
             // Return to the auth wall — the account and its data are gone.
+            app.reminders.handleSignOut()
             app.email = nil
             app.isAuthenticated = false
         } catch {
@@ -388,15 +448,13 @@ struct SettingsCard<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(title.uppercased())
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+            SectionLabel(title)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(RoundedRectangle(cornerRadius: 20).fill(ScranColor.panel))
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(ScranColor.line))
+        .background(RoundedRectangle(cornerRadius: 20).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(ScranColor.lineStrong))
     }
 }
 

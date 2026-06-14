@@ -24,17 +24,16 @@ struct OnboardingProgressBar: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(ScranColor.textPrimary)
                         .frame(width: 40, height: 40)
-                        .background(Circle().fill(ScranColor.panel))
-                        .overlay(Circle().strokeBorder(ScranColor.line, lineWidth: 1))
+                        .background(Circle().fill(ScranColor.bg))
+                        .overlay(Circle().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(ScranColor.lineStrong).frame(height: 6)
+                    Capsule().fill(ScranColor.verified.opacity(0.18)).frame(height: 6)
                     Capsule().fill(ScranColor.verified)
                         .frame(width: max(6, geo.size.width * progress), height: 6)
-                        .shadow(color: ScranColor.verified.opacity(0.5), radius: 6)
                 }
             }
             .frame(height: 6)
@@ -56,7 +55,7 @@ struct OnboardingHeader: View {
             Text(title)
                 .font(ScranFont.display(32, relativeTo: .largeTitle))
                 .textCase(.uppercase)
-                .foregroundStyle(ScranColor.textPrimary)
+                .foregroundStyle(ScranColor.verified)
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle {
                 Text(subtitle)
@@ -138,14 +137,15 @@ struct ChoiceCard: View {
                 if let systemIcon {
                     Image(systemName: systemIcon)
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(isSelected ? ScranColor.verified : ScranColor.textPrimary)
+                        .foregroundStyle(iconTinted ? ScranColor.verified : ScranColor.textPrimary)
                         .frame(width: 44, height: 44)
-                        .background(Circle().fill(isSelected ? ScranColor.verifiedDim : ScranColor.panel2))
+                        .background(Circle().fill(iconTinted ? ScranColor.verifiedDim : ScranColor.bg))
+                        .overlay(Circle().strokeBorder(iconTinted ? .clear : ScranColor.lineStrong, lineWidth: 1))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(ScranFont.body(16, weight: .semibold, relativeTo: .body))
-                        .foregroundStyle(ScranColor.textPrimary)
+                        .foregroundStyle(titleTinted ? ScranColor.verified : ScranColor.textPrimary)
                         .multilineTextAlignment(.leading)
                     if let subtitle {
                         Text(subtitle)
@@ -160,28 +160,56 @@ struct ChoiceCard: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(isSelected ? ScranColor.verifiedDim : ScranColor.panel))
+                .fill(rowTinted ? ScranColor.verifiedDim : ScranColor.bg))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isSelected ? ScranColor.verified.opacity(0.6) : ScranColor.line,
-                              lineWidth: isSelected ? 1.5 : 1))
+                .strokeBorder(borderTinted ? ScranColor.verified : ScranColor.lineStrong,
+                              lineWidth: borderTinted ? 2 : 1))
         }
         .buttonStyle(PressableStyle())
     }
 
+    // Multi-select: only the checkbox signals selection — the row stays neutral so
+    // a long list of chosen options is easy to scan. Single-select tints the row.
+    private var rowTinted: Bool { isSelected && !isMulti }
+    private var borderTinted: Bool { isSelected && !isMulti }
+    private var titleTinted: Bool { isSelected && !isMulti }
+    private var iconTinted: Bool { isSelected && !isMulti }
+
     @ViewBuilder private var indicator: some View {
         if isMulti {
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 22))
-                .foregroundStyle(isSelected ? ScranColor.verified : ScranColor.lineStrong)
+            CheckBox(isOn: isSelected)
         } else {
             ZStack {
-                Circle().strokeBorder(isSelected ? ScranColor.verified : ScranColor.lineStrong, lineWidth: 2)
+                Circle().strokeBorder(isSelected ? ScranColor.verified : ScranColor.verified.opacity(0.3), lineWidth: 2)
                     .frame(width: 24, height: 24)
                 if isSelected {
                     Circle().fill(ScranColor.verified).frame(width: 13, height: 13)
                 }
             }
         }
+    }
+}
+
+/// Rounded-square checkbox: empty outline when off, filled green with a tick when
+/// on. Used for every multi-select / consent checkbox.
+struct CheckBox: View {
+    let isOn: Bool
+    var size: CGFloat = 24
+    var body: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(isOn ? ScranColor.verified : Color.clear)
+            .frame(width: size, height: size)
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(isOn ? ScranColor.verified : ScranColor.lineStrong, lineWidth: 2))
+            .overlay {
+                if isOn {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: size * 0.5, weight: .bold))
+                        .foregroundStyle(ScranColor.onVerified)
+                }
+            }
+            .animation(.snappy(duration: 0.15), value: isOn)
     }
 }
 

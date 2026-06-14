@@ -31,6 +31,10 @@ enum AnalyticsEvent {
     case signedUp(method: String)
     case signedIn(method: String)
     case signedOut
+    case remindersEnabled(source: String)
+    case remindersDisabled
+    case reminderMealToggled(meal: String, on: Bool)
+    case reminderTimeChanged(meal: String)
 
     var name: String {
         switch self {
@@ -55,6 +59,10 @@ enum AnalyticsEvent {
         case .signedUp:             return "signed_up"
         case .signedIn:             return "signed_in"
         case .signedOut:            return "signed_out"
+        case .remindersEnabled:     return "reminders_enabled"
+        case .remindersDisabled:    return "reminders_disabled"
+        case .reminderMealToggled:  return "reminder_meal_toggled"
+        case .reminderTimeChanged:  return "reminder_time_changed"
         }
     }
 
@@ -71,6 +79,9 @@ enum AnalyticsEvent {
         case .purchase(let product):                 return ["product": product]
         case .signedUp(let method):                  return ["method": method]
         case .signedIn(let method):                  return ["method": method]
+        case .remindersEnabled(let source):          return ["source": source]
+        case .reminderMealToggled(let meal, let on): return ["meal": meal, "on": on]
+        case .reminderTimeChanged(let meal):         return ["meal": meal]
         default:                                     return [:]
         }
     }

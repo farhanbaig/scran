@@ -11,15 +11,25 @@ import SwiftUI
 import AuthenticationServices
 import CryptoKit
 
-/// Branded splash shown while we restore a stored session at launch.
+/// Branded splash shown while we restore a stored session at launch. Mirrors
+/// the onboarding welcome lockup (ClearoMark + wordmark) so launch feels
+/// continuous with the rest of the brand.
 struct AuthSplash: View {
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 22) {
             Spacer()
-            PlateMark(size: 150)
-            Text("SCRAN")
-                .font(ScranFont.display(28, relativeTo: .title)).tracking(2)
-                .foregroundStyle(ScranColor.textPrimary)
+            ZStack {
+                RadialGlow(diameter: 420)
+                VStack(spacing: 22) {
+                    ClearoMark(size: 150)
+                    Text("CLEARO")
+                        .font(ScranFont.display(28, relativeTo: .title))
+                        .tracking(10)
+                        .foregroundStyle(ScranColor.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -30,6 +40,7 @@ struct AuthSplash: View {
 struct AuthView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Called after a successful sign-in/up (in addition to wiring the session).
     /// Used by onboarding to advance to plan-building, or a sheet to dismiss.
@@ -59,6 +70,11 @@ struct AuthView: View {
     /// True when at least one social provider is configured.
     private var hasSocialProviders: Bool { ScranConfig.appleSignInEnabled }
 
+    /// Email/password auth is hidden for now — sign-in is Apple or continue
+    /// without an account. Flip to `true` to bring the email path back (all the
+    /// email UI/logic below is preserved).
+    private let showEmailAuth = false
+
     init(startInSignIn: Bool = false, isUpgrade: Bool = false, allowAnonymous: Bool = false,
          onComplete: (() -> Void)? = nil, onBack: (() -> Void)? = nil) {
         _mode = State(initialValue: startInSignIn ? .signIn : .signUp)
@@ -82,20 +98,26 @@ struct AuthView: View {
                 if let info { ScranBanner(kind: .info, text: info) }
                 if let error { ScranBanner(kind: .error, text: error) }
 
-                // Providers first (when configured), with email as the fallback.
                 VStack(spacing: 12) {
                     if ScranConfig.appleSignInEnabled { appleButton }
 
-                    if hasSocialProviders && !showEmailForm {
-                        continueWithEmailButton
-                    } else {
-                        emailForm
+                    // Email/password path — hidden for now (showEmailAuth == false).
+                    if showEmailAuth {
+                        if hasSocialProviders && !showEmailForm {
+                            continueWithEmailButton
+                        } else {
+                            emailForm
+                        }
                     }
                 }
 
-                if mode == .signUp { consentRows }
-                toggleModeButton
+                if showEmailAuth && mode == .signUp { consentRows }
+                if showEmailAuth { toggleModeButton }
                 if allowAnonymous && !isUpgrade { anonymousOption }
+
+                // With email hidden, consent is implicit — surface the links so
+                // users can still read what they're agreeing to.
+                if !showEmailAuth { legalLine }
             }
             .padding(24)
             .padding(.top, 8)
@@ -115,37 +137,69 @@ struct AuthView: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(ScranColor.textPrimary)
                         .frame(width: 40, height: 40)
-                        .background(Circle().fill(ScranColor.panel))
-                        .overlay(Circle().strokeBorder(ScranColor.line, lineWidth: 1))
+                        .background(Circle().fill(ScranColor.bg))
+                        .overlay(Circle().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
                 }
                 .accessibilityLabel("Back")
             }
-            PlateMark(size: 112).frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(isUpgrade ? "Sync your data" : (mode == .signUp ? "Save your progress" : "Welcome back"))
-                    .font(ScranFont.display(32, relativeTo: .largeTitle)).textCase(.uppercase)
-                    .foregroundStyle(ScranColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(isUpgrade
-                     ? "Add an email and password so your plan syncs to any device. Everything you've logged is kept."
-                     : (mode == .signUp
-                        ? "Create an account so your plan and your log sync to any device."
-                        : "Sign in to pick up exactly where you left off."))
-                    .font(ScranFont.body(16, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textMuted)
+            VStack(spacing: 16) {
+                ClearoMark(size: 92)
+                VStack(spacing: 10) {
+                    Text(headerTitle)
+                        .font(ScranFont.display(32, relativeTo: .largeTitle)).textCase(.uppercase)
+                        .foregroundStyle(ScranColor.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(headerSubtitle)
+                        .font(ScranFont.body(16, relativeTo: .body))
+                        .foregroundStyle(ScranColor.textMuted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, onBack == nil ? 12 : 0)
         }
+    }
+
+    private var headerTitle: String {
+        if isUpgrade { return "Sync your data" }
+        return mode == .signUp ? "Save your progress" : "Welcome back"
+    }
+
+    private var headerSubtitle: String {
+        if isUpgrade {
+            return "Sign in with Apple so your plan and log sync to any device. Everything you've logged is kept."
+        }
+        if mode == .signIn { return "Sign in to pick up exactly where you left off." }
+        return showEmailAuth
+            ? "Create an account so your plan and your log sync to any device."
+            : "Sign in with Apple so your plan and log follow you to any device — or keep going on this phone."
     }
 
     // MARK: - Providers / form
 
     private var appleButton: some View {
-        SignInWithAppleButton(.signIn, onRequest: configureApple, onCompletion: handleApple)
-            .signInWithAppleButtonStyle(.black)
-            .frame(height: 52)
+        // When the email path is hidden, consent is implicit (shown via legalLine)
+        // so the button isn't gated on the checkbox.
+        let gated = showEmailAuth && !termsOK
+        return SignInWithAppleButton(.signIn, onRequest: configureApple, onCompletion: handleApple)
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(height: 54)
             .clipShape(Capsule())
-            .disabled(busy || !termsOK)
-            .opacity(termsOK ? 1 : 0.5)
+            .disabled(busy || gated)
+            .opacity(gated ? 0.5 : 1)
+    }
+
+    /// Implicit-consent footer shown when the email/consent form is hidden.
+    private var legalLine: some View {
+        Text(.init("By continuing you agree to Clearo's [Terms](\(ScranConfig.termsURL.absoluteString)) and [Privacy Policy](\(ScranConfig.privacyURL.absoluteString))."))
+            .font(ScranFont.body(12, relativeTo: .footnote))
+            .foregroundStyle(ScranColor.textMuted)
+            .tint(ScranColor.verified)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
     }
 
     private var continueWithEmailButton: some View {
@@ -161,7 +215,7 @@ struct AuthView: View {
             }
             .frame(maxWidth: .infinity).frame(height: 52)
             .foregroundStyle(ScranColor.textPrimary)
-            .background(Capsule().fill(ScranColor.panel))
+            .background(Capsule().fill(ScranColor.bg))
             .overlay(Capsule().strokeBorder(ScranColor.lineStrong, lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
@@ -194,12 +248,12 @@ struct AuthView: View {
     private var consentRows: some View {
         VStack(alignment: .leading, spacing: 12) {
             checkRow(checked: agreedTerms, toggle: { agreedTerms.toggle() }) {
-                (Text("I agree to Scran's ")
-                 + Text("Terms").underline().foregroundColor(ScranColor.textPrimary)
-                 + Text(" and ")
-                 + Text("Privacy Policy").underline().foregroundColor(ScranColor.textPrimary))
+                // Markdown links are tappable — required so users can actually
+                // read what they're agreeing to before consenting.
+                Text(.init("I agree to Clearo's [Terms](\(ScranConfig.termsURL.absoluteString)) and [Privacy Policy](\(ScranConfig.privacyURL.absoluteString))"))
                     .font(ScranFont.body(13, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
+                    .tint(ScranColor.textPrimary)
             }
             checkRow(checked: marketingOptIn, toggle: { marketingOptIn.toggle() }) {
                 Text("Send me occasional tips and product updates.")
@@ -213,9 +267,7 @@ struct AuthView: View {
     private func checkRow<L: View>(checked: Bool, toggle: @escaping () -> Void, @ViewBuilder label: () -> L) -> some View {
         Button { Haptics.selection(); toggle() } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: checked ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 20))
-                    .foregroundStyle(checked ? ScranColor.verified : ScranColor.lineStrong)
+                CheckBox(isOn: checked, size: 22)
                 label()
                 Spacer(minLength: 0)
             }
@@ -283,7 +335,7 @@ struct AuthView: View {
         .font(ScranFont.body(16, relativeTo: .body))
         .foregroundStyle(ScranColor.textPrimary)
         .padding(16)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.panel))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.bg))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(ScranColor.line))
     }
 

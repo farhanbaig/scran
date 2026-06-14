@@ -15,7 +15,11 @@ import SwiftData
 final class UserPlan {
     @Attribute(.unique) var id: UUID
     var heightCm: Double
-    var weightKg: Double
+    var weightKg: Double            // current weight — drives the live plan maths
+    /// The weight the journey began at — a fixed baseline for "started at / since
+    /// start", independent of later weigh-ins. Defaults to 0 for plans created
+    /// before this field existed; `journeyStartWeightKg` falls back to weightKg.
+    var startWeightKg: Double = 0
     var dateOfBirth: Date
     var biologicalSex: String      // BiologicalSex.rawValue
     var activityLevel: String      // ActivityLevel.rawValue
@@ -30,26 +34,31 @@ final class UserPlan {
     var fatTargetG: Double
     var satFatLimitG: Double
     var fibreTargetG: Double
+    var focusAreas: [String]       // FocusArea.rawValue — user-chosen daily-view lenses
     var explanation: String?
     var explanationVersion: Int
     var createdAt: Date
     var updatedAt: Date
     var syncState: String
 
-    init(id: UUID = UUID(), heightCm: Double, weightKg: Double, dateOfBirth: Date,
+    init(id: UUID = UUID(), heightCm: Double, weightKg: Double, startWeightKg: Double? = nil,
+         dateOfBirth: Date,
          biologicalSex: String, activityLevel: String, weeklyWorkouts: Int, goal: String,
          weeklyRateKg: Double, bmr: Double, tdee: Double, dailyTargetKcal: Double,
          proteinTargetG: Double, carbsTargetG: Double, fatTargetG: Double,
-         satFatLimitG: Double, fibreTargetG: Double, explanation: String? = nil,
+         satFatLimitG: Double, fibreTargetG: Double, focusAreas: [String] = [],
+         explanation: String? = nil,
          explanationVersion: Int = 0, createdAt: Date = .now, updatedAt: Date = .now,
          syncState: String = SyncState.pending.rawValue) {
         self.id = id; self.heightCm = heightCm; self.weightKg = weightKg
+        self.startWeightKg = startWeightKg ?? weightKg
         self.dateOfBirth = dateOfBirth; self.biologicalSex = biologicalSex
         self.activityLevel = activityLevel; self.weeklyWorkouts = weeklyWorkouts
         self.goal = goal; self.weeklyRateKg = weeklyRateKg; self.bmr = bmr; self.tdee = tdee
         self.dailyTargetKcal = dailyTargetKcal; self.proteinTargetG = proteinTargetG
         self.carbsTargetG = carbsTargetG; self.fatTargetG = fatTargetG
         self.satFatLimitG = satFatLimitG; self.fibreTargetG = fibreTargetG
+        self.focusAreas = focusAreas
         self.explanation = explanation; self.explanationVersion = explanationVersion
         self.createdAt = createdAt; self.updatedAt = updatedAt; self.syncState = syncState
     }
@@ -59,10 +68,24 @@ final class UserPlan {
     var goalEnum: Goal { Goal(rawValue: goal) ?? .maintain }
     var age: Int { PlanCalculator.age(from: dateOfBirth) }
 
+    /// Decoded focus-area lenses the user chose during onboarding.
+    var focus: Set<FocusArea> { Set(focusAreas.compactMap(FocusArea.init(rawValue:))) }
+
     var input: PlanInput {
         PlanInput(heightCm: heightCm, weightKg: weightKg, age: age, sex: sex,
                   activity: activity, weeklyWorkouts: weeklyWorkouts, goal: goalEnum,
                   weeklyRateKg: weeklyRateKg)
+    }
+
+    /// Fixed journey baseline. Falls back to current weight for legacy plans.
+    var journeyStartWeightKg: Double { startWeightKg > 0 ? startWeightKg : weightKg }
+
+    /// The daily calorie target this plan would set at a given body weight — used
+    /// to show how the target shifts as weight changes (start → now).
+    func dailyTarget(atWeightKg w: Double) -> Double {
+        var i = input
+        i.weightKg = w
+        return PlanCalculator.calculate(i).dailyTargetKcal
     }
 
     /// Recompute all derived numbers from current inputs and stamp a new version.
@@ -138,6 +161,9 @@ struct SavedMealItem: Codable, Hashable, Sendable, Identifiable {
     var per100g: NutrientBlock
     var servingSizeG: Double
     var quantity: Double
+    /// Local photo of the original entry, if any — additive optional, so rows
+    /// saved before this field existed decode as nil.
+    var photoLocalPath: String? = nil
 
     var sourceEnum: EntrySource { EntrySource(rawValue: source) ?? .saved }
     var total: NutrientBlock { per100g.scaled(toGrams: servingSizeG * quantity) }
@@ -146,13 +172,15 @@ struct SavedMealItem: Codable, Hashable, Sendable, Identifiable {
         self.name = entry.name; self.brand = entry.brand; self.source = entry.source
         self.confidence = entry.confidence; self.per100g = entry.per100g
         self.servingSizeG = entry.servingSizeG; self.quantity = entry.quantity
+        self.photoLocalPath = entry.photoLocalPath
     }
 
-    /// Build a fresh FoodEntry to log this snapshot at a given time.
+    /// Build a fresh FoodEntry to log this snapshot at a given time. The photo
+    /// carries over, so a re-logged meal keeps its picture.
     func makeEntry(loggedAt: Date = .now) -> FoodEntry {
         FoodEntry(loggedAt: loggedAt, name: name, brand: brand, source: source,
                   confidence: confidence, per100g: per100g, servingSizeG: servingSizeG,
-                  quantity: quantity, clarifications: [])
+                  quantity: quantity, photoLocalPath: photoLocalPath, clarifications: [])
     }
 }
 

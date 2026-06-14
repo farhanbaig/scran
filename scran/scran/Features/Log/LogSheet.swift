@@ -21,7 +21,7 @@ struct LogSheet: View {
             VStack(alignment: .leading, spacing: 22) {
                 header
 
-                section("SCAN") {
+                section("Scan") {
                     modeRow(kind: .barcode, source: .barcode, icon: "barcode.viewfinder",
                             title: "Scan barcode",
                             subtitle: "Packaged food — checks the UK database.",
@@ -36,7 +36,7 @@ struct LogSheet: View {
                             tag: .ai, requiresNetwork: true, isAI: true)
                 }
 
-                section("QUICK") {
+                section("Quick") {
                     modeRow(kind: .saved, source: .label, icon: "bookmark.fill",
                             title: "Saved meals",
                             subtitle: "One tap to re-log a regular meal.",
@@ -64,44 +64,30 @@ struct LogSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Log food")
-                .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
-                .foregroundStyle(ScranColor.textPrimary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Log food")
+                    .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
+                    .foregroundStyle(ScranColor.verified)
+                Text("How do you want to log it?")
+                    .font(ScranFont.body(15, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(ScranColor.textMuted)
+            }
             if let r = app.quota.remaining {
-                quotaPill(remaining: r)
+                QuotaPill(remaining: r)
             } else if app.isPro {
                 Text("Unlimited AI scans")
-                    .font(ScranFont.body(14, relativeTo: .footnote))
+                    .font(ScranFont.body(14, weight: .medium, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func quotaPill(remaining r: Int) -> some View {
-        let exhausted = r <= 0
-        let tint = exhausted ? ScranColor.error : (r <= 1 ? ScranColor.estimate : ScranColor.verified)
-        return HStack(spacing: 7) {
-            Image(systemName: exhausted ? "exclamationmark.circle.fill" : "sparkles")
-                .font(.system(size: 12, weight: .bold))
-                .accessibilityHidden(true)
-            Text(exhausted ? "No AI scans left today"
-                           : "\(r) AI \(r == 1 ? "scan" : "scans") left today")
-                .font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 11).padding(.vertical, 6)
-        .background(Capsule().fill(tint.opacity(0.12)))
-        .accessibilityElement(children: .combine)
-    }
-
     // MARK: - Section
 
     private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.6).foregroundStyle(ScranColor.textMuted)
+            SectionLabel(title)
             VStack(spacing: 10) { content() }
         }
     }
@@ -142,16 +128,16 @@ struct LogSheet: View {
                 trailingTag(tag)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ScranColor.textMuted.opacity(0.6))
+                    .foregroundStyle(tinted ? source.color : ScranColor.verified)
                     .accessibilityHidden(true)
             }
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ScranColor.panel)
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ScranColor.bg)
             )
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(ScranColor.line, lineWidth: 1))
+                .strokeBorder(ScranColor.lineStrong, lineWidth: 1))
             .opacity(disabled ? 0.5 : 1)
         }
         .buttonStyle(PressableStyle())

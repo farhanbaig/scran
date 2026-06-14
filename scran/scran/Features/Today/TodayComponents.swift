@@ -19,26 +19,28 @@ struct CalorieRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(ScranColor.lineStrong, lineWidth: 14)
+            // Track is a faint tint of the ring colour — no neutral grey.
+            Circle().stroke(ringColor.opacity(0.15), lineWidth: 14)
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(ringColor, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: ringColor.opacity(0.5), radius: 12)
                 .animation(.snappy(duration: 0.4), value: progress)
             VStack(spacing: 2) {
                 Text(ScranFormat.int(abs(remaining)))
                     .font(ScranFont.mono(44, weight: .bold, relativeTo: .largeTitle))
                     .foregroundStyle(ringColor)
-                    .shadow(color: ringColor.opacity(0.5), radius: 12)
                     .contentTransition(.numericText())
                 Text(over ? "kcal over" : "kcal left")
                     .font(ScranFont.mono(13, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
-                Text("\(ScranFormat.int(consumed)) / \(ScranFormat.int(target))")
-                    .font(ScranFont.mono(12, relativeTo: .caption))
-                    .foregroundStyle(ScranColor.textMuted)
-                    .padding(.top, 4)
+                // Highlighted consumed / target — eaten in the ring colour.
+                HStack(spacing: 0) {
+                    Text(ScranFormat.int(consumed)).foregroundStyle(ringColor)
+                    Text(" / \(ScranFormat.int(target))").foregroundStyle(ScranColor.textPrimary)
+                }
+                .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
+                .padding(.top, 5)
             }
         }
         .frame(width: 196, height: 196)
@@ -52,28 +54,38 @@ struct MacroBar: View {
     let consumed: Double
     let target: Double
     var tint: Color = ScranColor.textPrimary
+    /// Optional nutrient glyph shown before the label (see MacroGlyph).
+    var icon: String? = nil
 
     private var progress: Double { target > 0 ? min(consumed / target, 1) : 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            // Label on its own line — never competes with the value for width.
+            HStack(spacing: 4) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(tint)
+                        .accessibilityHidden(true)
+                }
                 Text(label).font(ScranFont.body(12, weight: .semibold, relativeTo: .caption))
                     .foregroundStyle(ScranColor.textMuted)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Spacer()
-                Text("\(ScranFormat.int(consumed))/\(ScranFormat.int(target))g")
-                    .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
-                    .foregroundStyle(ScranColor.textPrimary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(ScranColor.lineStrong).frame(height: 6)
+                    Capsule().fill(tint.opacity(0.16)).frame(height: 6)
                     Capsule().fill(tint).frame(width: geo.size.width * progress, height: 6)
                 }
             }
             .frame(height: 6)
+            // Value on its own line below the bar — full column width, no crop.
+            Text("\(ScranFormat.int(consumed)) / \(ScranFormat.int(target))g")
+                .font(ScranFont.mono(12, weight: .bold, relativeTo: .caption))
+                .foregroundStyle(ScranColor.textPrimary)
+                .lineLimit(1).minimumScaleFactor(0.8)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label): \(ScranFormat.int(consumed)) of \(ScranFormat.int(target)) grams")
@@ -91,24 +103,22 @@ struct EvidenceBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("TODAY'S EVIDENCE")
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .tracking(1.4).foregroundStyle(ScranColor.textMuted)
+            SectionLabel("Today's evidence")
             GeometryReader { geo in
                 HStack(spacing: 2) {
                     segment(verifiedKcal, ScranColor.verified, geo.size.width)
                     segment(databaseKcal, ScranColor.database, geo.size.width)
                     segment(estimateKcal, ScranColor.estimate, geo.size.width)
-                    segment(otherKcal, ScranColor.textMuted, geo.size.width)
+                    segment(otherKcal, ScranColor.textMuted.opacity(0.35), geo.size.width)
                 }
             }
             .frame(height: 8)
             .clipShape(Capsule())
-            .background(Capsule().fill(ScranColor.lineStrong))
-            HStack(spacing: 14) {
-                legend("Verified", ScranColor.verified, verifiedKcal)
-                legend("Database", ScranColor.database, databaseKcal)
-                legend("Estimate", ScranColor.estimate, estimateKcal)
+            .background(Capsule().fill(ScranColor.line))
+            FlowLayout(spacing: 14, lineSpacing: 6) {
+                legend("Verified", "checkmark.seal.fill", ScranColor.verified, verifiedKcal)
+                legend("Database", "barcode", ScranColor.database, databaseKcal)
+                legend("Estimate", "camera.metering.center.weighted", ScranColor.estimate, estimateKcal)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -126,12 +136,14 @@ struct EvidenceBar: View {
             .frame(width: total > 0 ? width * (value / total) : 0)
     }
 
-    private func legend(_ name: String, _ color: Color, _ value: Double) -> some View {
+    private func legend(_ name: String, _ glyph: String, _ color: Color, _ value: Double) -> some View {
         let pct = total > 0 ? Int((value / total * 100).rounded()) : 0
         return HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 7, height: 7)
+            Image(systemName: glyph)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(color)
             Text("\(name) \(pct)%")
-                .font(ScranFont.mono(11, relativeTo: .caption2))
+                .font(ScranFont.mono(12, relativeTo: .caption))
                 .foregroundStyle(ScranColor.textMuted)
         }
     }

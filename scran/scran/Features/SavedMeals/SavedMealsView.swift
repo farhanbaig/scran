@@ -35,7 +35,7 @@ struct SavedMealsView: View {
                 List {
                     ForEach(meals) { meal in
                         row(meal)
-                            .listRowBackground(ScranColor.panel)
+                            .listRowBackground(ScranColor.bg)
                             .listRowSeparatorTint(ScranColor.line)
                     }
                     .onDelete(perform: delete)
@@ -54,10 +54,13 @@ struct SavedMealsView: View {
             relog(meal)
         } label: {
             HStack(spacing: 14) {
+                mealThumb(meal)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(meal.name)
                         .font(ScranFont.body(16, weight: .bold, relativeTo: .body))
                         .foregroundStyle(ScranColor.textPrimary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
                     HStack(spacing: 10) {
                         Text(ScranFormat.kcalText(meal.total.kcal))
                             .font(ScranFont.mono(13, weight: .bold, relativeTo: .caption))
@@ -77,9 +80,40 @@ struct SavedMealsView: View {
         .buttonStyle(.plain)
     }
 
+    /// Photo of the meal where one exists, otherwise a quiet bookmark tile.
+    @ViewBuilder private func mealThumb(_ meal: SavedMeal) -> some View {
+        #if canImport(UIKit)
+        if let path = meal.items.first(where: { $0.photoLocalPath != nil })?.photoLocalPath,
+           let photo = PhotoStore.image(atRelativePath: path) {
+            Image(uiImage: photo)
+                .resizable().scaledToFill()
+                .frame(width: 56, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
+                .accessibilityHidden(true)
+        } else {
+            fallbackThumb
+        }
+        #else
+        fallbackThumb
+        #endif
+    }
+
+    private var fallbackThumb: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg)
+                .frame(width: 56, height: 56)
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
+            Image(systemName: "bookmark.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(ScranColor.verified)
+        }
+        .accessibilityHidden(true)
+    }
+
     private var empty: some View {
         VStack(spacing: 16) {
-            PlateMark(size: 156)
+            SavedMealArt(size: 160)
             Text("No saved meals yet")
                 .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
                 .foregroundStyle(ScranColor.textPrimary)

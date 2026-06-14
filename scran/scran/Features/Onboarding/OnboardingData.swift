@@ -91,6 +91,42 @@ enum DietType: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// What the user wants to keep an eye on. Drives which numbers get surfaced on
+/// the daily view — a user-chosen *lens*, not a medical condition mapping. Stays
+/// firmly in the wellness lane: we surface facts, we never diagnose or prescribe.
+enum FocusArea: String, CaseIterable, Identifiable, Sendable {
+    case weight, heart, bloodSugar, protein, gut
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .weight:     return "Weight & calories"
+        case .heart:      return "Heart — sat fat, salt, fibre"
+        case .bloodSugar: return "Blood sugar — carbs & sugar"
+        case .protein:    return "Protein & strength"
+        case .gut:        return "Gut health & fibre"
+        }
+    }
+    /// Short name for compact chips (Settings summary).
+    var shortLabel: String {
+        switch self {
+        case .weight:     return "Weight"
+        case .heart:      return "Heart"
+        case .bloodSugar: return "Blood sugar"
+        case .protein:    return "Protein"
+        case .gut:        return "Gut health"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .weight:     return "scalemass.fill"
+        case .heart:      return "heart.fill"
+        case .bloodSugar: return "drop.fill"
+        case .protein:    return "figure.strengthtraining.traditional"
+        case .gut:        return "leaf.fill"
+        }
+    }
+}
+
 enum ReferralSource: String, CaseIterable, Identifiable, Sendable {
     case tiktok, instagram, youtube, appStore, friend, x, web, other
     var id: String { rawValue }
@@ -148,6 +184,9 @@ final class OnboardingDraft {
     var worksWithPro: Bool? = nil
     var referral: ReferralSource? = nil
 
+    // What to keep an eye on. Defaults to weight so the baseline view is unchanged.
+    var focusAreas: Set<FocusArea> = [.weight]
+
     var input: PlanInput {
         PlanInput(heightCm: heightCm, weightKg: weightKg,
                   age: PlanCalculator.age(from: dateOfBirth), sex: sex, activity: activity,
@@ -164,7 +203,8 @@ final class OnboardingDraft {
                         bmr: out.bmr, tdee: out.tdee, dailyTargetKcal: out.dailyTargetKcal,
                         proteinTargetG: out.proteinTargetG, carbsTargetG: out.carbsTargetG,
                         fatTargetG: out.fatTargetG, satFatLimitG: out.satFatLimitG,
-                        fibreTargetG: out.fibreTargetG)
+                        fibreTargetG: out.fibreTargetG,
+                        focusAreas: focusAreas.map(\.rawValue))
     }
 
     /// Compact context passed to explain-plan so the AI copy can acknowledge the
@@ -174,6 +214,7 @@ final class OnboardingDraft {
             "motivations": motivations.map(\.rawValue),
             "blockers": blockers.map(\.rawValue),
             "diet": diet?.rawValue as Any,
+            "focusAreas": focusAreas.map(\.rawValue),
         ]
     }
 }

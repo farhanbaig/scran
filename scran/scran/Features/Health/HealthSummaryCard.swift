@@ -32,7 +32,8 @@ struct HealthStatTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.panel2))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(ScranColor.lineStrong))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label): \(value)")
     }
@@ -87,9 +88,7 @@ struct HealthTodayCard: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(ScranColor.error)
                         .accessibilityHidden(true)
-                    Text("APPLE HEALTH · TODAY")
-                        .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                        .tracking(1.2).foregroundStyle(ScranColor.textMuted)
+                    SectionLabel("Apple Health · today")
                 }
                 HealthStatGrid(snapshot: snapshot)
             }
