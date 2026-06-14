@@ -40,8 +40,9 @@ struct PlateScanScreen: View {
             case .capturing:
                 PhotoCaptureScreen(
                     title: "Photograph the plate",
-                    instruction: "Frame the whole plate from above",
+                    instruction: "Shoot straight down — fit the whole plate inside the box.",
                     accent: ScranColor.estimate,
+                    guide: .plate,
                     onCapture: { process($0) },
                     onCancel: { coordinator.cancel() })
             case .processing:
@@ -164,15 +165,14 @@ struct PlateScanScreen: View {
                     .foregroundStyle(ScranColor.textMuted)
 
                 ForEach(r.questions) { q in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text(q.prompt)
                             .font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
                             .foregroundStyle(ScranColor.textPrimary)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(q.options, id: \.self) { opt in
-                                    optionChip(opt, selected: isSelected(q, opt)) { toggle(q, opt) }
-                                }
+                        // Wrap so every option is visible — no hidden horizontal scroll.
+                        FlowLayout(spacing: 8, lineSpacing: 8) {
+                            ForEach(q.options, id: \.self) { opt in
+                                optionChip(opt, selected: isSelected(q, opt)) { toggle(q, opt) }
                             }
                         }
                     }

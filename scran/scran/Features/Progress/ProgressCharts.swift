@@ -82,10 +82,10 @@ struct WeightTrendChart: View {
                             .foregroundStyle(.linearGradient(
                                 colors: [ScranColor.verified.opacity(0.22), ScranColor.verified.opacity(0.02)],
                                 startPoint: .top, endPoint: .bottom))
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                         LineMark(x: .value("Date", w.date), y: .value("kg", w.weightKg))
                             .foregroundStyle(ScranColor.verified)
-                            .interpolationMethod(.catmullRom)
+                            .interpolationMethod(.monotone)
                             .lineStyle(StrokeStyle(lineWidth: 2.5))
                         PointMark(x: .value("Date", w.date), y: .value("kg", w.weightKg))
                             .foregroundStyle(ScranColor.verified)
@@ -108,7 +108,11 @@ struct WeightTrendChart: View {
                                 .foregroundStyle(ScranColor.textMuted)
                         }
                     }
+                    // Clip the plot so the area fill can't bleed past the frame
+                    // (flat/near-flat data made the AreaMark spill down the screen).
+                    .chartPlotStyle { $0.clipped() }
                     .frame(height: 170)
+                    .clipped()
                 }
             }
         }

@@ -80,6 +80,35 @@ struct FlowLayout: Layout {
     }
 }
 
+// MARK: - AI scan quota pill
+
+/// Shows remaining free AI scans. Subtle tinted pill while scans remain; when
+/// exhausted it's a high-contrast solid red pill — a clear, highlighted stop.
+/// Shared by Today and the Log sheet.
+struct QuotaPill: View {
+    let remaining: Int
+    var body: some View {
+        let exhausted = remaining <= 0
+        let tint = exhausted ? ScranColor.error : (remaining <= 1 ? ScranColor.estimate : ScranColor.verified)
+        HStack(spacing: 7) {
+            Image(systemName: exhausted ? "exclamationmark.circle.fill" : "sparkles")
+                .font(.system(size: 13, weight: .bold))
+                .accessibilityHidden(true)
+            Text(exhausted ? "No AI scans left today"
+                           : "\(remaining) AI \(remaining == 1 ? "scan" : "scans") left today")
+                .font(ScranFont.body(13, weight: .bold, relativeTo: .footnote))
+                .lineLimit(1)
+        }
+        .foregroundStyle(exhausted ? .white : tint)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(Capsule().fill(exhausted ? tint : tint.opacity(0.12)))
+        .overlay(Capsule().strokeBorder(tint.opacity(exhausted ? 0 : 0.3), lineWidth: 1))
+        .shadow(color: exhausted ? tint.opacity(0.4) : .clear, radius: 8, y: 2)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Card
 
 struct ScranCard<Content: View>: View {
@@ -179,8 +208,10 @@ struct ScranHeader: View {
                 .foregroundStyle(ScranColor.verified)
             if let subtitle {
                 Text(subtitle)
-                    .font(ScranFont.body(14, relativeTo: .footnote))
-                    .foregroundStyle(ScranColor.textMuted)
+                    .font(ScranFont.body(15, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -227,7 +258,24 @@ struct ScranStepper: View {
     var step: Double = 1
     var range: ClosedRange<Double> = 0...100000
     var unit: String = ""
+    /// Tap the value to type an exact number on a keypad.
+    var editable: Bool = false
+    /// +/- step scales with magnitude (small/medium/large) instead of a fixed step.
+    var adaptive: Bool = false
     var format: (Double) -> String
+
+    @State private var editing = false
+    @State private var draft = ""
+
+    /// Step that grows with the value so big and small portions both adjust fast.
+    private var effectiveStep: Double {
+        guard adaptive else { return step }
+        switch value {
+        case ..<50:  return 5
+        case ..<200: return 10
+        default:     return 25
+        }
+    }
 
     var body: some View {
         HStack {
@@ -237,18 +285,54 @@ struct ScranStepper: View {
             Spacer()
             HStack(spacing: 14) {
                 stepButton(systemName: "minus") {
-                    value = max(range.lowerBound, value - step)
+                    value = max(range.lowerBound, value - effectiveStep)
                 }
-                Text(format(value))
-                    .font(ScranFont.mono(16, weight: .bold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textPrimary)
-                    .frame(minWidth: 64)
-                    .contentTransition(.numericText())
+                valueLabel
                 stepButton(systemName: "plus") {
-                    value = min(range.upperBound, value + step)
+                    value = min(range.upperBound, value + effectiveStep)
                 }
             }
         }
+        // Exact entry via a native alert — an explicit "Set" button applies it.
+        // Avoids keyboard-toolbar focus conflicts (no flaky "Done").
+        .alert(label, isPresented: $editing) {
+            TextField("Value", text: $draft)
+                .keyboardType(.decimalPad)
+            Button("Set") { commitEdit() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(unit.isEmpty ? "Type an exact value." : "Type an exact value in \(unit).")
+        }
+    }
+
+    @ViewBuilder private var valueLabel: some View {
+        Text(format(value))
+            .font(ScranFont.mono(16, weight: .bold, relativeTo: .body))
+            .foregroundStyle(ScranColor.textPrimary)
+            .frame(minWidth: 64)
+            .contentTransition(.numericText())
+            .overlay(alignment: .bottom) {
+                if editable {
+                    Rectangle().fill(ScranColor.lineStrong)
+                        .frame(height: 1).offset(y: 4)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard editable else { return }
+                draft = value == value.rounded() ? String(Int(value)) : String(value)
+                editing = true
+                Haptics.selection()
+            }
+            .accessibilityAddTraits(editable ? .isButton : [])
+            .accessibilityHint(editable ? "Tap to type an exact value" : "")
+    }
+
+    private func commitEdit() {
+        if let n = Double(draft.replacingOccurrences(of: ",", with: ".")) {
+            value = min(range.upperBound, max(range.lowerBound, n))
+        }
+        editing = false
     }
 
     private func stepButton(systemName: String, action: @escaping () -> Void) -> some View {

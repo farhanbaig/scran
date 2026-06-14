@@ -59,6 +59,8 @@ struct SavedMealsView: View {
                     Text(meal.name)
                         .font(ScranFont.body(16, weight: .bold, relativeTo: .body))
                         .foregroundStyle(ScranColor.textPrimary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
                     HStack(spacing: 10) {
                         Text(ScranFormat.kcalText(meal.total.kcal))
                             .font(ScranFont.mono(13, weight: .bold, relativeTo: .caption))

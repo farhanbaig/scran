@@ -111,12 +111,17 @@ struct EntryEditorView: View {
     private var portionCard: some View {
         ScranCard {
             VStack(spacing: 16) {
-                ScranStepper(label: "Serving size", value: $draft.servingSizeG, step: 10,
-                             range: 1...5000, format: { ScranFormat.grams($0) })
+                ScranStepper(label: "Serving size", value: $draft.servingSizeG,
+                             range: 1...5000, unit: "grams", editable: true, adaptive: true,
+                             format: { ScranFormat.grams($0) })
                     .onChange(of: draft.servingSizeG) { _, _ in app.analytics.track(.entryPortionEdited) }
                 Divider().overlay(ScranColor.line)
                 ScranStepper(label: "Quantity", value: $draft.quantity, step: 0.5,
                              range: 0.5...50, format: { $0 == $0.rounded() ? "\(Int($0))×" : String(format: "%.1f×", $0) })
+                Text("Tap a number to type it exactly.")
+                    .font(ScranFont.body(12, relativeTo: .caption2))
+                    .foregroundStyle(ScranColor.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -165,7 +170,7 @@ struct EntryEditorView: View {
                 }
                 .tint(ScranColor.verified)
                 if draft.saveAsMeal {
-                    TextField("Meal name (e.g. Tuesday daal)", text: $draft.mealName)
+                    TextField("Meal name (e.g. Weekday lunch)", text: $draft.mealName)
                         .font(ScranFont.body(15, relativeTo: .body))
                         .padding(12)
                         .background(RoundedRectangle(cornerRadius: 10).fill(ScranColor.bg))

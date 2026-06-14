@@ -71,8 +71,9 @@ struct EntryDetailSheet: View {
 
                 ScranCard {
                     VStack(spacing: 16) {
-                        ScranStepper(label: "Serving size", value: $entry.servingSizeG, step: 10,
-                                     range: 1...5000, format: { ScranFormat.grams($0) })
+                        ScranStepper(label: "Serving size", value: $entry.servingSizeG,
+                                     range: 1...5000, unit: "grams", editable: true, adaptive: true,
+                                     format: { ScranFormat.grams($0) })
                         Divider().overlay(ScranColor.line)
                         ScranStepper(label: "Quantity", value: $entry.quantity, step: 0.5,
                                      range: 0.5...50,

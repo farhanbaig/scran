@@ -287,9 +287,11 @@ struct LevelChip: View {
         Text(text)
             .font(ScranFont.mono(10, weight: .bold, relativeTo: .caption2))
             .tracking(0.6)
+            .lineLimit(1)
             .foregroundStyle(color)
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background(Capsule().fill(color.opacity(0.14)))
             .overlay(Capsule().strokeBorder(color.opacity(0.35), lineWidth: 1))
+            .fixedSize(horizontal: true, vertical: false)
     }
 }

@@ -71,6 +71,7 @@ struct SourceBadge: View {
                 .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
                 .tracking(0.88) // ≈ .08em at 11pt
                 .textCase(.uppercase)
+                .lineLimit(1)
                 .foregroundStyle(isNeutral ? ScranColor.textMuted : source.color)
         }
         .padding(.vertical, 6)
@@ -82,6 +83,8 @@ struct SourceBadge: View {
             Capsule(style: .continuous)
                 .strokeBorder(source.color.opacity(isNeutral ? 0.16 : 0.35), lineWidth: 1)
         )
+        // Never let a tight row squeeze the badge into vertical characters.
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
     }

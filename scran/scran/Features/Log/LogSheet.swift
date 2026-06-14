@@ -64,35 +64,23 @@ struct LogSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Log food")
-                .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
-                .foregroundStyle(ScranColor.textPrimary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Log food")
+                    .font(ScranFont.display(30, relativeTo: .largeTitle)).textCase(.uppercase)
+                    .foregroundStyle(ScranColor.verified)
+                Text("How do you want to log it?")
+                    .font(ScranFont.body(15, weight: .medium, relativeTo: .subheadline))
+                    .foregroundStyle(ScranColor.textMuted)
+            }
             if let r = app.quota.remaining {
-                quotaPill(remaining: r)
+                QuotaPill(remaining: r)
             } else if app.isPro {
                 Text("Unlimited AI scans")
-                    .font(ScranFont.body(14, relativeTo: .footnote))
+                    .font(ScranFont.body(14, weight: .medium, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func quotaPill(remaining r: Int) -> some View {
-        let exhausted = r <= 0
-        let tint = exhausted ? ScranColor.error : (r <= 1 ? ScranColor.estimate : ScranColor.verified)
-        return HStack(spacing: 7) {
-            Image(systemName: exhausted ? "exclamationmark.circle.fill" : "sparkles")
-                .font(.system(size: 12, weight: .bold))
-                .accessibilityHidden(true)
-            Text(exhausted ? "No AI scans left today"
-                           : "\(r) AI \(r == 1 ? "scan" : "scans") left today")
-                .font(ScranFont.body(13, weight: .semibold, relativeTo: .footnote))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 11).padding(.vertical, 6)
-        .background(Capsule().fill(tint.opacity(0.12)))
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Section
@@ -143,10 +131,11 @@ struct LogSheet: View {
                     .foregroundStyle(tinted ? source.color : ScranColor.verified)
                     .accessibilityHidden(true)
             }
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ScranColor.bg)
+                    .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
             )
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(ScranColor.lineStrong, lineWidth: 1))

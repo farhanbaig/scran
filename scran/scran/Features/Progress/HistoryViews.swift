@@ -350,12 +350,12 @@ struct DayDetailView: View {
             ForEach(Mealtime.allCases.sorted { $0.order < $1.order }, id: \.self) { meal in
                 if let items = groups[meal], !items.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack {
+                        HStack(alignment: .firstTextBaseline) {
                             SectionLabel(meal.label)
                             Spacer()
                             Text(ScranFormat.kcalText(items.reduce(0) { $0 + $1.total.kcal }))
-                                .font(ScranFont.mono(13, weight: .bold, relativeTo: .caption))
-                                .foregroundStyle(ScranColor.textMuted)
+                                .font(ScranFont.mono(17, weight: .bold, relativeTo: .body))
+                                .foregroundStyle(ScranColor.verified)
                         }
                         ForEach(items) { entry in
                             EntryRow(entry: entry, flag: plan?.highFlag(for: entry.total))

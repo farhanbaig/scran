@@ -15,8 +15,9 @@ struct PhotoCaptureScreen: View {
     let title: String
     let instruction: String
     var accent: Color = ScranColor.verified
-    /// Draw a rectangular nutrition-table guide (label mode) vs. a loose frame.
-    var showLabelGuide: Bool = false
+    /// Framing guide + crop region. `.label` (table) / `.plate` (square) crop the
+    /// capture to the box; `.none` keeps the full frame.
+    var guide: CaptureGuide = .none
     var onCapture: (UIImage) -> Void
     var onCancel: () -> Void
 
@@ -25,6 +26,9 @@ struct PhotoCaptureScreen: View {
     @State private var authorized = false
     @State private var checkedPermission = false
     @State private var capturing = false
+    /// Live size of the camera view, so the drawn guide and the crop use the
+    /// exact same rectangle.
+    @State private var viewSize: CGSize = .zero
 
     var body: some View {
         ZStack {
@@ -32,6 +36,12 @@ struct PhotoCaptureScreen: View {
 
             if authorized {
                 CameraPreview(controller: controller).ignoresSafeArea()
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { viewSize = geo.size }
+                        .onChange(of: geo.size) { _, s in viewSize = s }
+                }
+                guideOverlay
                 overlay
             } else if checkedPermission {
                 permissionDenied
@@ -46,6 +56,33 @@ struct PhotoCaptureScreen: View {
         .statusBarHidden()
     }
 
+    /// Dimmed scrim with the framing box punched out, so it's obvious that only
+    /// what's inside the box is captured.
+    @ViewBuilder private var guideOverlay: some View {
+        if guide.cropsToGuide, viewSize != .zero {
+            let r = guide.rect(in: viewSize)
+            ZStack {
+                Color.black.opacity(0.45)
+                    .mask {
+                        Rectangle()
+                            .overlay {
+                                RoundedRectangle(cornerRadius: guide.cornerRadius, style: .continuous)
+                                    .frame(width: r.width, height: r.height)
+                                    .position(x: r.midX, y: r.midY)
+                                    .blendMode(.destinationOut)
+                            }
+                            .compositingGroup()
+                    }
+                RoundedRectangle(cornerRadius: guide.cornerRadius, style: .continuous)
+                    .strokeBorder(accent, lineWidth: 2.5)
+                    .frame(width: r.width, height: r.height)
+                    .position(x: r.midX, y: r.midY)
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        }
+    }
+
     private var overlay: some View {
         VStack {
             // Top bar
@@ -53,7 +90,7 @@ struct PhotoCaptureScreen: View {
                 Button { Haptics.tap(); onCancel() } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(ScranColor.textPrimary)
+                        .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
                         .background(Circle().fill(.black.opacity(0.45)))
                 }
@@ -64,7 +101,7 @@ struct PhotoCaptureScreen: View {
                 } label: {
                     Image(systemName: torchOn ? "bolt.fill" : "bolt.slash")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(torchOn ? accent : ScranColor.textPrimary)
+                        .foregroundStyle(torchOn ? accent : .white)
                         .frame(width: 44, height: 44)
                         .background(Circle().fill(.black.opacity(0.45)))
                 }
@@ -75,31 +112,29 @@ struct PhotoCaptureScreen: View {
 
             Spacer()
 
-            if showLabelGuide {
-                RoundedRectangle(cornerRadius: 14)
-                    .strokeBorder(accent.opacity(0.9), style: StrokeStyle(lineWidth: 2, dash: [8, 6]))
-                    .frame(height: 220)
-                    .padding(.horizontal, 28)
-            }
-
             Text(instruction)
-                .font(ScranFont.mono(13, relativeTo: .footnote))
+                .font(ScranFont.body(14, weight: .semibold, relativeTo: .footnote))
                 .multilineTextAlignment(.center)
-                .foregroundStyle(ScranColor.textPrimary)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(Capsule().fill(.black.opacity(0.5)))
-                .padding(.top, 18)
-
-            Spacer()
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16).padding(.vertical, 11)
+                .background(Capsule().fill(.black.opacity(0.55)))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
 
             // Shutter
             Button {
                 guard !capturing else { return }
                 capturing = true
                 Haptics.tap()
+                let g = guide
+                let vs = viewSize
                 controller.capture { image in
                     capturing = false
-                    if let image { onCapture(image) }
+                    guard var image else { return }
+                    if g.cropsToGuide, vs != .zero {
+                        image = image.croppedToPreviewRect(g.rect(in: vs), viewSize: vs)
+                    }
+                    onCapture(image)
                 }
             } label: {
                 ZStack {

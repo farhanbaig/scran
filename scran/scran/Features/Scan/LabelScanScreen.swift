@@ -26,9 +26,9 @@ struct LabelScanScreen: View {
             case .capturing:
                 PhotoCaptureScreen(
                     title: "Photograph the label",
-                    instruction: "Fill the frame with the nutrition table",
+                    instruction: "Fit the nutrition table inside the box — straight on, fills the box, no glare.",
                     accent: ScranColor.verified,
-                    showLabelGuide: true,
+                    guide: .label,
                     onCapture: { image in process(image) },
                     onCancel: { coordinator.cancel() })
 

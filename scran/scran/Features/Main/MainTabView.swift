@@ -206,24 +206,53 @@ struct ProgressTabView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ScranColor.database.opacity(0.3)))
     }
 
+    /// Fixed row height so the embedded (scroll-disabled) List can be given an
+    /// exact frame inside the outer ScrollView.
+    private let weighInRowHeight: CGFloat = 62
+
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Weigh-ins")
-            ForEach(live) { w in
-                HStack {
-                    Text(String(format: "%.1f kg", w.weightKg))
-                        .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
-                        .foregroundStyle(ScranColor.textPrimary)
-                    Spacer()
-                    Text(w.date.formatted(date: .abbreviated, time: .omitted))
-                        .font(ScranFont.body(13, relativeTo: .footnote))
-                        .foregroundStyle(ScranColor.textMuted)
-                }
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
+            HStack {
+                SectionLabel("Weigh-ins")
+                Spacer()
+                Text("Swipe to delete")
+                    .font(ScranFont.body(12, relativeTo: .caption2))
+                    .foregroundStyle(ScranColor.textMuted)
             }
+            List {
+                ForEach(live) { w in
+                    weighInRow(w)
+                        .listRowInsets(EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) { deleteWeight(w) } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .scrollDisabled(true)
+            .frame(height: CGFloat(live.count) * weighInRowHeight)
         }
+    }
+
+    private func weighInRow(_ w: WeightEntry) -> some View {
+        HStack {
+            Text(String(format: "%.1f kg", w.weightKg))
+                .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
+                .foregroundStyle(ScranColor.textPrimary)
+            Spacer()
+            Text(w.date.formatted(date: .abbreviated, time: .omitted))
+                .font(ScranFont.body(13, relativeTo: .footnote))
+                .foregroundStyle(ScranColor.textMuted)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 52)
+        .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
     }
 
     private var logWeightSheet: some View {
@@ -256,6 +285,16 @@ struct ProgressTabView: View {
         try? context.save()
         Haptics.success()
         showLogWeight = false
+        let ctx = context
+        Task { await app.sync.syncPending(context: ctx) }
+    }
+
+    /// Soft-delete a mistaken weigh-in (matches FoodEntry deletion).
+    private func deleteWeight(_ w: WeightEntry) {
+        w.deletedAt = .now
+        w.syncState = SyncState.pending.rawValue
+        try? context.save()
+        Haptics.warning()
         let ctx = context
         Task { await app.sync.syncPending(context: ctx) }
     }

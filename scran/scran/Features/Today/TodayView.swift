@@ -39,26 +39,24 @@ struct TodayView: View {
     private var plan: UserPlan? { plans.first }
     private var consumed: NutrientBlock { entries.reduce(NutrientBlock.zero) { $0 + $1.total } }
 
-    /// "Wednesday 11 June · 1,460 kcal left · 2 AI scans left today"
+    /// Just the date — "kcal left" lives in the ring, scans live in the quota
+    /// pill, so the subtitle no longer duplicates either.
     private var headerSubtitle: String {
-        var parts = [Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide))]
-        if let plan {
-            let left = plan.dailyTargetKcal - consumed.kcal
-            parts.append(left >= 0
-                ? "\(ScranFormat.int(left)) kcal left"
-                : "\(ScranFormat.int(-left)) kcal over")
-        }
-        if let counter = app.quota.counterText { parts.append(counter) }
-        return parts.joined(separator: " · ")
+        Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
-                    HStack(alignment: .top, spacing: 12) {
-                        ScranHeader(title: "Today", subtitle: headerSubtitle)
-                        logButton
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .top, spacing: 12) {
+                            ScranHeader(title: "Today", subtitle: headerSubtitle)
+                            logButton
+                        }
+                        if let r = app.quota.remaining {
+                            QuotaPill(remaining: r)
+                        }
                     }
                     if let plan {
                         ringCard(plan)
@@ -99,24 +97,10 @@ struct TodayView: View {
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(ScranColor.onVerified)
             }
-            .overlay(alignment: .topTrailing) { quotaBadge }
         }
         .buttonStyle(PressableStyle(scale: 0.9))
         .accessibilityLabel("Log food")
         .accessibilityHint(app.quota.counterText ?? "")
-    }
-
-    @ViewBuilder private var quotaBadge: some View {
-        if let r = app.quota.remaining, r <= 2 {
-            Text("\(r)")
-                .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
-                .foregroundStyle(r == 0 ? ScranColor.bg : ScranColor.onVerified)
-                .frame(width: 19, height: 19)
-                .background(Circle().fill(r == 0 ? ScranColor.error : ScranColor.estimate))
-                .overlay(Circle().strokeBorder(ScranColor.bg, lineWidth: 2))
-                .offset(x: 3, y: -3)
-                .accessibilityHidden(true)
-        }
     }
 
     // MARK: - Ring
@@ -149,12 +133,12 @@ struct TodayView: View {
             ForEach(Mealtime.allCases.sorted { $0.order < $1.order }, id: \.self) { meal in
                 if let items = groups[meal], !items.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack {
+                        HStack(alignment: .firstTextBaseline) {
                             SectionLabel(meal.label)
                             Spacer()
                             Text(ScranFormat.kcalText(items.reduce(0) { $0 + $1.total.kcal }))
-                                .font(ScranFont.mono(13, weight: .bold, relativeTo: .caption))
-                                .foregroundStyle(ScranColor.textMuted)
+                                .font(ScranFont.mono(17, weight: .bold, relativeTo: .body))
+                                .foregroundStyle(ScranColor.verified)
                         }
                         ForEach(items) { entry in
                             EntryRow(entry: entry, flag: plan?.highFlag(for: entry.total))
@@ -256,21 +240,28 @@ struct EntryRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(entry.name)
                     .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textPrimary).lineLimit(1)
-                HStack(spacing: 8) {
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                // Wrap chips to a second line if the row is tight — never compress
+                // them into vertical characters.
+                FlowLayout(spacing: 6, lineSpacing: 6) {
                     SourceBadge(source: entry.sourceEnum, confidence: entry.confidence)
                     Text(ScranFormat.grams(entry.totalGrams))
                         .font(ScranFont.mono(11, relativeTo: .caption2))
                         .foregroundStyle(ScranColor.textMuted)
+                        .fixedSize()
                     if let flag {
                         LevelChip(text: "HIGH \(flag.short)", color: flag.tint)
                     }
                 }
             }
-            Spacer()
+            Spacer(minLength: 16)
             Text(ScranFormat.kcalText(entry.total.kcal))
                 .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
                 .foregroundStyle(ScranColor.textPrimary)
+                .fixedSize()
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 16).fill(ScranColor.bg))

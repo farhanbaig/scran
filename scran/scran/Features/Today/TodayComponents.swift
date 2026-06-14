@@ -36,10 +36,13 @@ struct CalorieRing: View {
                 Text(over ? "kcal over" : "kcal left")
                     .font(ScranFont.mono(13, relativeTo: .footnote))
                     .foregroundStyle(ScranColor.textMuted)
-                Text("\(ScranFormat.int(consumed)) / \(ScranFormat.int(target))")
-                    .font(ScranFont.mono(12, relativeTo: .caption))
-                    .foregroundStyle(ScranColor.textMuted)
-                    .padding(.top, 4)
+                // Highlighted consumed / target — eaten in the ring colour.
+                HStack(spacing: 0) {
+                    Text(ScranFormat.int(consumed)).foregroundStyle(ringColor)
+                    Text(" / \(ScranFormat.int(target))").foregroundStyle(ScranColor.textPrimary)
+                }
+                .font(ScranFont.mono(15, weight: .bold, relativeTo: .body))
+                .padding(.top, 5)
             }
         }
         .frame(width: 196, height: 196)
