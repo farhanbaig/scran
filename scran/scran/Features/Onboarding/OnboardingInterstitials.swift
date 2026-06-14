@@ -144,9 +144,11 @@ struct HonestPlanLoadingScreen: View {
                     }
                 }
                 .padding(22)
+                .frame(maxWidth: .infinity)
                 .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.line))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             Spacer()
         }

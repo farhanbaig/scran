@@ -29,7 +29,7 @@ struct PaywallView: View {
                 header
                 if trigger == "quota" {
                     ScranBanner(kind: .info,
-                                text: "You've used today's 3 free AI scans. Barcode and manual logging still work — or go unlimited.")
+                                text: "You've used today's \(ScranConfig.freeDailyScans) free AI scans. Barcode and manual logging still work — or go unlimited.")
                 }
                 freeCard
                 proCard
@@ -101,7 +101,7 @@ struct PaywallView: View {
                     .foregroundStyle(ScranColor.textMuted)
                 featureList([
                     "Unlimited barcode & manual logging",
-                    "3 AI scans every day",
+                    "\(ScranConfig.freeDailyScans) AI scans every day",
                     "10 saved meals, one-tap re-log",
                     "Your data, exportable as CSV",
                 ])

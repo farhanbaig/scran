@@ -63,7 +63,7 @@ export async function isPro(appUserId: string): Promise<boolean> {
   }
 }
 
-export const FREE_DAILY_SCANS = 3;
+export const FREE_DAILY_SCANS = 5;
 
 export async function scansUsedToday(sb: SupabaseClient, userId: string): Promise<number> {
   const start = new Date();

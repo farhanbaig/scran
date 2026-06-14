@@ -69,6 +69,11 @@ struct AuthView: View {
     /// True when at least one social provider is configured.
     private var hasSocialProviders: Bool { ScranConfig.appleSignInEnabled }
 
+    /// Email/password auth is hidden for now — sign-in is Apple or continue
+    /// without an account. Flip to `true` to bring the email path back (all the
+    /// email UI/logic below is preserved).
+    private let showEmailAuth = false
+
     init(startInSignIn: Bool = false, isUpgrade: Bool = false, allowAnonymous: Bool = false,
          onComplete: (() -> Void)? = nil, onBack: (() -> Void)? = nil) {
         _mode = State(initialValue: startInSignIn ? .signIn : .signUp)
@@ -92,20 +97,26 @@ struct AuthView: View {
                 if let info { ScranBanner(kind: .info, text: info) }
                 if let error { ScranBanner(kind: .error, text: error) }
 
-                // Providers first (when configured), with email as the fallback.
                 VStack(spacing: 12) {
                     if ScranConfig.appleSignInEnabled { appleButton }
 
-                    if hasSocialProviders && !showEmailForm {
-                        continueWithEmailButton
-                    } else {
-                        emailForm
+                    // Email/password path — hidden for now (showEmailAuth == false).
+                    if showEmailAuth {
+                        if hasSocialProviders && !showEmailForm {
+                            continueWithEmailButton
+                        } else {
+                            emailForm
+                        }
                     }
                 }
 
-                if mode == .signUp { consentRows }
-                toggleModeButton
+                if showEmailAuth && mode == .signUp { consentRows }
+                if showEmailAuth { toggleModeButton }
                 if allowAnonymous && !isUpgrade { anonymousOption }
+
+                // With email hidden, consent is implicit — surface the links so
+                // users can still read what they're agreeing to.
+                if !showEmailAuth { legalLine }
             }
             .padding(24)
             .padding(.top, 8)
@@ -130,32 +141,64 @@ struct AuthView: View {
                 }
                 .accessibilityLabel("Back")
             }
-            PlateMark(size: 112).frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(isUpgrade ? "Sync your data" : (mode == .signUp ? "Save your progress" : "Welcome back"))
-                    .font(ScranFont.display(32, relativeTo: .largeTitle)).textCase(.uppercase)
-                    .foregroundStyle(ScranColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(isUpgrade
-                     ? "Add an email and password so your plan syncs to any device. Everything you've logged is kept."
-                     : (mode == .signUp
-                        ? "Create an account so your plan and your log sync to any device."
-                        : "Sign in to pick up exactly where you left off."))
-                    .font(ScranFont.body(16, relativeTo: .body))
-                    .foregroundStyle(ScranColor.textMuted)
+            VStack(spacing: 16) {
+                ClearoMark(size: 92)
+                VStack(spacing: 10) {
+                    Text(headerTitle)
+                        .font(ScranFont.display(32, relativeTo: .largeTitle)).textCase(.uppercase)
+                        .foregroundStyle(ScranColor.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(headerSubtitle)
+                        .font(ScranFont.body(16, relativeTo: .body))
+                        .foregroundStyle(ScranColor.textMuted)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, onBack == nil ? 12 : 0)
         }
+    }
+
+    private var headerTitle: String {
+        if isUpgrade { return "Sync your data" }
+        return mode == .signUp ? "Save your progress" : "Welcome back"
+    }
+
+    private var headerSubtitle: String {
+        if isUpgrade {
+            return "Sign in with Apple so your plan and log sync to any device. Everything you've logged is kept."
+        }
+        if mode == .signIn { return "Sign in to pick up exactly where you left off." }
+        return showEmailAuth
+            ? "Create an account so your plan and your log sync to any device."
+            : "Sign in with Apple so your plan and log follow you to any device — or keep going on this phone."
     }
 
     // MARK: - Providers / form
 
     private var appleButton: some View {
-        SignInWithAppleButton(.signIn, onRequest: configureApple, onCompletion: handleApple)
+        // When the email path is hidden, consent is implicit (shown via legalLine)
+        // so the button isn't gated on the checkbox.
+        let gated = showEmailAuth && !termsOK
+        return SignInWithAppleButton(.signIn, onRequest: configureApple, onCompletion: handleApple)
             .signInWithAppleButtonStyle(.black)
-            .frame(height: 52)
+            .frame(height: 54)
             .clipShape(Capsule())
-            .disabled(busy || !termsOK)
-            .opacity(termsOK ? 1 : 0.5)
+            .disabled(busy || gated)
+            .opacity(gated ? 0.5 : 1)
+    }
+
+    /// Implicit-consent footer shown when the email/consent form is hidden.
+    private var legalLine: some View {
+        Text(.init("By continuing you agree to Clearo's [Terms](\(ScranConfig.termsURL.absoluteString)) and [Privacy Policy](\(ScranConfig.privacyURL.absoluteString))."))
+            .font(ScranFont.body(12, relativeTo: .footnote))
+            .foregroundStyle(ScranColor.textMuted)
+            .tint(ScranColor.verified)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
     }
 
     private var continueWithEmailButton: some View {

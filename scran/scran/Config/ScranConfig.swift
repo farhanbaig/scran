@@ -49,7 +49,7 @@ enum ScranConfig {
     static let appleSignInEnabled = true
 
     // MARK: - Product rules
-    static let freeDailyScans = 3
+    static let freeDailyScans = 5
     static let freeSavedMealsLimit = 10
     static let freeHistoryDays = 14
 
