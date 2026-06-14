@@ -37,7 +37,6 @@ struct AffirmationScreen: View {
                 Image(systemName: icon)
                     .font(.system(size: 64, weight: .regular))
                     .foregroundStyle(ScranColor.verified)
-                    .shadow(color: ScranColor.verified.opacity(0.5), radius: 16)
             }
             Text(title)
                 .font(ScranFont.display(30, relativeTo: .largeTitle))
@@ -130,7 +129,6 @@ struct HonestPlanLoadingScreen: View {
                             Text("\(ScranFormat.int(output.dailyTargetKcal)) kcal")
                                 .font(ScranFont.mono(20, weight: .bold, relativeTo: .title3))
                                 .foregroundStyle(ScranColor.verified)
-                                .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                         }
                         .transition(.opacity)
                     } else {
@@ -235,7 +233,6 @@ struct PermissionPrimeScreen: View {
                 RadialGlow(diameter: 300)
                 Image(systemName: icon).font(.system(size: 58))
                     .foregroundStyle(ScranColor.verified)
-                    .shadow(color: ScranColor.verified.opacity(0.5), radius: 16)
             }
             Text(title)
                 .font(ScranFont.display(28, relativeTo: .largeTitle)).textCase(.uppercase)

@@ -65,7 +65,7 @@ struct ReminderSettingsCard: View {
                 .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                 .foregroundStyle(ScranColor.textPrimary)
         }
-        .tint(ScranColor.verified)
+        .tint(ScranColor.positive)
         .disabled(requesting)
     }
 
@@ -110,7 +110,7 @@ struct ReminderSettingsCard: View {
                     .font(ScranFont.body(15, relativeTo: .body))
                     .foregroundStyle(ScranColor.textPrimary)
             }
-            .tint(ScranColor.verified)
+            .tint(ScranColor.positive)
             .labelsHidden()
             Text(meal.label)
                 .font(ScranFont.body(15, relativeTo: .body))

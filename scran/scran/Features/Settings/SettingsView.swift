@@ -453,8 +453,7 @@ struct SettingsCard<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
-        .background(RoundedRectangle(cornerRadius: 20).fill(ScranColor.bg)
-            .shadow(color: .black.opacity(0.05), radius: 12, y: 4))
+        .background(RoundedRectangle(cornerRadius: 20).fill(ScranColor.bg))
         .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(ScranColor.lineStrong))
     }
 }

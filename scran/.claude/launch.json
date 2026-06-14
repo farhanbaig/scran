@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "clearo-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/farhanmirza/Desktop/MyCompany/products/clearo-web/server.js"],
+      "port": 4321
+    }
+  ]
+}

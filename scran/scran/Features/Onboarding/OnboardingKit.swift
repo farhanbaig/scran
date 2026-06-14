@@ -34,7 +34,6 @@ struct OnboardingProgressBar: View {
                     Capsule().fill(ScranColor.verified.opacity(0.18)).frame(height: 6)
                     Capsule().fill(ScranColor.verified)
                         .frame(width: max(6, geo.size.width * progress), height: 6)
-                        .shadow(color: ScranColor.verified.opacity(0.5), radius: 6)
                 }
             }
             .frame(height: 6)

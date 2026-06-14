@@ -92,7 +92,6 @@ struct EntryEditorView: View {
                     Text(ScranFormat.int(draft.total.kcal))
                         .font(ScranFont.mono(40, weight: .bold, relativeTo: .largeTitle))
                         .foregroundStyle(ScranColor.verified)
-                        .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                         .contentTransition(.numericText())
                     Text("kcal").font(ScranFont.mono(16, relativeTo: .body))
                         .foregroundStyle(ScranColor.textMuted)
@@ -168,7 +167,7 @@ struct EntryEditorView: View {
                         .font(ScranFont.body(15, weight: .semibold, relativeTo: .body))
                         .foregroundStyle(ScranColor.textPrimary)
                 }
-                .tint(ScranColor.verified)
+                .tint(ScranColor.positive)
                 if draft.saveAsMeal {
                     TextField("Meal name (e.g. Weekday lunch)", text: $draft.mealName)
                         .font(ScranFont.body(15, relativeTo: .body))

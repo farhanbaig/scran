@@ -53,7 +53,6 @@ struct EntryDetailSheet: View {
                             Text(ScranFormat.int(entry.total.kcal))
                                 .font(ScranFont.mono(36, weight: .bold, relativeTo: .largeTitle))
                                 .foregroundStyle(ScranColor.verified)
-                                .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                                 .contentTransition(.numericText())
                             Text("kcal").font(ScranFont.mono(15, relativeTo: .body))
                                 .foregroundStyle(ScranColor.textMuted)

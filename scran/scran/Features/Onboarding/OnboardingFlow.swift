@@ -108,8 +108,8 @@ struct OnboardingFlow: View {
         case .health:
             OnboardingScaffold(
                 progress: progress, onBack: backAction,
-                title: "Connect to Apple Health",
-                subtitle: "Sync your activity, sleep and weight between Clearo and the Health app — read-only, for the most complete picture.",
+                title: "Bring in Apple Health",
+                subtitle: "Pull your activity, sleep and weight across from Health — read-only, so your plan has the fullest picture from day one.",
                 ctaTitle: healthImported ? "Continue" : (healthImporting ? "Connecting…" : "Connect Apple Health"),
                 ctaEnabled: !healthImporting,
                 secondaryTitle: "Skip",
@@ -130,8 +130,8 @@ struct OnboardingFlow: View {
 
         case .sex:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "Choose your sex",
-                               subtitle: "Used only for the Mifflin-St Jeor metabolism formula.",
+                               title: "Your biological sex",
+                               subtitle: "It feeds the metabolism maths — that's the only reason we ask.",
                                ctaEnabled: true, onContinue: advance) {
                 VStack(spacing: 12) {
                     ChoiceCard(title: "Male", systemIcon: "person.fill",
@@ -143,22 +143,22 @@ struct OnboardingFlow: View {
 
         case .dob:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "When were you born?",
-                               subtitle: "Age factors into your daily energy calculation.",
+                               title: "When's your birthday?",
+                               subtitle: "Age is one of the inputs to your daily energy number.",
                                onContinue: advance) {
                 DOBPicker(date: $d.dateOfBirth).frame(maxWidth: .infinity)
             }
 
         case .height:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "What is your height?",
+                               title: "How tall are you?",
                                onContinue: advance) {
                 HeightPicker(heightCm: $d.heightCm, unit: $d.heightUnit).frame(maxWidth: .infinity)
             }
 
         case .weight:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "What is your weight?",
+                               title: "And your weight right now?",
                                onContinue: advance) {
                 VStack(spacing: 18) {
                     ScranSegmented(options: WeightUnit.allCases.map { ($0, $0.label) },
@@ -177,7 +177,8 @@ struct OnboardingFlow: View {
 
         case .activity:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "How active are you?",
+                               title: "How active is a normal day?",
+                               subtitle: "Be honest — over-guessing here is the usual reason targets drift.",
                                onContinue: advance) {
                 VStack(spacing: 12) {
                     ForEach(ActivityLevel.allCases) { lvl in
@@ -190,8 +191,8 @@ struct OnboardingFlow: View {
 
         case .workouts:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "How many workouts per week?",
-                               subtitle: "This calibrates your plan — and we never add the calories back.",
+                               title: "Workouts in a typical week?",
+                               subtitle: "We calibrate around this — and never quietly hand the calories back when you train.",
                                onContinue: advance) {
                 VStack(spacing: 12) {
                     workoutCard("0–2", "Now and then", value: 1)
@@ -202,8 +203,8 @@ struct OnboardingFlow: View {
 
         case .goal:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "What is your goal?",
-                               subtitle: "This shapes your calorie target — shown with full working.",
+                               title: "What are you here to do?",
+                               subtitle: "This sets your calorie target — and we'll show you exactly how it's worked out.",
                                onContinue: advance) {
                 VStack(spacing: 12) {
                     ChoiceCard(title: "Lose weight", systemIcon: "arrow.down",
@@ -217,8 +218,8 @@ struct OnboardingFlow: View {
 
         case .rate:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "How fast?",
-                               subtitle: "A faster rate means a tighter daily target. 0.5 kg/week is a sustainable default.",
+                               title: "At what pace?",
+                               subtitle: "A faster pace means a tighter daily target. 0.5 kg a week is the sustainable sweet spot.",
                                onContinue: advance) {
                 VStack(spacing: 18) {
                     ScranSegmented(options: [(0.25, "0.25 kg"), (0.5, "0.5 kg"), (0.75, "0.75 kg")],
@@ -235,8 +236,8 @@ struct OnboardingFlow: View {
 
         case .motivations:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "What would you like to accomplish?",
-                               subtitle: "Pick any that fit — we'll reflect these in your plan.",
+                               title: "What are you hoping to feel?",
+                               subtitle: "Pick anything that fits — it shapes how we talk to you along the way.",
                                ctaEnabled: !d.motivations.isEmpty, onContinue: advance) {
                 MultiSelectList(options: Motivation.allCases, selection: $d.motivations,
                                 label: \.label, icon: { $0.icon })
@@ -244,7 +245,8 @@ struct OnboardingFlow: View {
 
         case .blockers:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "What's stopping you from reaching your goals?",
+                               title: "What's tripped you up before?",
+                               subtitle: "Knowing the snag helps us design around it, not nag you about it.",
                                ctaEnabled: !d.blockers.isEmpty, onContinue: advance) {
                 MultiSelectList(options: Blocker.allCases, selection: $d.blockers,
                                 label: \.label, icon: { $0.icon })
@@ -252,7 +254,8 @@ struct OnboardingFlow: View {
 
         case .diet:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "Do you follow a specific diet?",
+                               title: "Eating a particular way?",
+                               subtitle: "Optional — it helps us tune the suggestions we make.",
                                ctaEnabled: d.diet != nil, onContinue: advance) {
                 SingleSelectList(options: DietType.allCases, selection: $d.diet,
                                  label: \.label, icon: { $0.icon })
@@ -262,7 +265,7 @@ struct OnboardingFlow: View {
             // Focus areas can imply health information, so this step collects
             // explicit UK GDPR consent: informed copy + an affirmative Continue.
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "What do you want to keep an eye on?",
+                               title: "Anything you want to watch closely?",
                                subtitle: "We'll surface the right numbers on your daily view — like saturated fat and fibre if you're watching your heart. General nutrition info, not medical advice. Because these choices can relate to your health, they're stored securely as health data, used only to personalise your numbers, and never for advertising. Tapping Continue gives your consent — you can change or clear them any time.",
                                ctaEnabled: !d.focusAreas.isEmpty,
                                onContinue: {
@@ -275,16 +278,16 @@ struct OnboardingFlow: View {
             }
 
         case .triedApps:
-            yesNo(title: "Have you tried other calorie tracking apps?",
+            yesNo(title: "Tried other trackers before?",
                   subtitle: nil, value: $d.triedOtherApps)
 
         case .worksPro:
-            yesNo(title: "Do you work with a personal trainer or dietitian?",
-                  subtitle: "We'll make your data easy to export and share.", value: $d.worksWithPro)
+            yesNo(title: "Working with a coach or dietitian?",
+                  subtitle: "If so, we'll keep your data easy to export and share with them.", value: $d.worksWithPro)
 
         case .referral:
             OnboardingScaffold(progress: progress, onBack: backAction,
-                               title: "Where did you hear about us?",
+                               title: "How did you find Clearo?",
                                ctaEnabled: d.referral != nil, onContinue: advance) {
                 SingleSelectList(options: ReferralSource.allCases, selection: $d.referral,
                                  label: \.label, icon: { $0.icon })
@@ -293,18 +296,18 @@ struct OnboardingFlow: View {
         case .trust:
             AffirmationScreen(progress: progress, onBack: backAction,
                               icon: "checkmark.seal.fill",
-                              title: "Thank you for trusting us",
-                              subtitle: "Now let's build your plan — with every number sourced and the maths on screen.",
-                              badge: "Yours, everywhere",
-                              badgeDetail: "Next you'll create an account so your plan and log sync to any device — exportable any time.",
+                              title: "That's everything — thank you",
+                              subtitle: "Now we'll build your plan, with every number sourced and the maths on screen.",
+                              badge: "Yours on every device",
+                              badgeDetail: "Next, create an account so your plan and log sync anywhere — and export any time.",
                               onContinue: advance)
 
         case .notifications:
             PermissionPrimeScreen(
                 progress: progress, onBack: backAction,
                 icon: "bell.badge.fill",
-                title: "Stay on track",
-                subtitle: "A gentle daily nudge to log — never spam, and you can turn it off any time.",
+                title: "Want a nudge to log?",
+                subtitle: "One gentle reminder around mealtimes — never spam, and off whenever you like.",
                 primaryTitle: "Enable reminders",
                 onPrimary: {
                     // Only flip the pref on; actual scheduling waits until the plan
@@ -418,20 +421,18 @@ private struct WelcomeScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
-            ZStack {
-                RadialGlow(diameter: 420)
-                VStack(spacing: 22) {
-                    ClearoMark(size: 150)
-                    Text("CLEARO")
-                        .font(ScranFont.display(34, relativeTo: .largeTitle))
-                        .tracking(10)
-                        .foregroundStyle(ScranColor.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .accessibilityAddTraits(.isHeader)
-                }
+            VStack(spacing: 20) {
+                ClearoMark(size: 120)
+                Text("CLEARO")
+                    .font(ScranFont.display(32, relativeTo: .largeTitle))
+                    .tracking(10)
+                    .foregroundStyle(ScranColor.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityAddTraits(.isHeader)
             }
             Spacer()
+
             VStack(alignment: .leading, spacing: 14) {
                 Text("Calorie tracking that shows its working")
                     .font(ScranFont.display(32, relativeTo: .largeTitle))

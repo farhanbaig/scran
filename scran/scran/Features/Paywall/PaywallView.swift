@@ -61,10 +61,7 @@ struct PaywallView: View {
             }
             .padding(20).padding(.bottom, 30)
         }
-        .background(
-            ScranColor.bg.ignoresSafeArea()
-                .overlay(alignment: .top) { RadialGlow(diameter: 460).offset(y: -80) }
-        )
+        .background(ScranColor.bg.ignoresSafeArea())
         .overlay(alignment: .topTrailing) {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
@@ -147,7 +144,6 @@ struct PaywallView: View {
                 .fill(LinearGradient(colors: [ScranColor.verified.opacity(0.07), .clear],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
         )
-        .shadow(color: ScranColor.verified.opacity(0.35), radius: 30, y: 16)
     }
 
     private var promise: some View {

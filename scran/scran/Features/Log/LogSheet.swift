@@ -135,7 +135,6 @@ struct LogSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ScranColor.bg)
-                    .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
             )
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(ScranColor.lineStrong, lineWidth: 1))

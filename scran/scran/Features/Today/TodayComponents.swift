@@ -25,13 +25,11 @@ struct CalorieRing: View {
                 .trim(from: 0, to: progress)
                 .stroke(ringColor, style: StrokeStyle(lineWidth: 14, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: ringColor.opacity(0.5), radius: 12)
                 .animation(.snappy(duration: 0.4), value: progress)
             VStack(spacing: 2) {
                 Text(ScranFormat.int(abs(remaining)))
                     .font(ScranFont.mono(44, weight: .bold, relativeTo: .largeTitle))
                     .foregroundStyle(ringColor)
-                    .shadow(color: ringColor.opacity(0.5), radius: 12)
                     .contentTransition(.numericText())
                 Text(over ? "kcal over" : "kcal left")
                     .font(ScranFont.mono(13, relativeTo: .footnote))
@@ -111,16 +109,16 @@ struct EvidenceBar: View {
                     segment(verifiedKcal, ScranColor.verified, geo.size.width)
                     segment(databaseKcal, ScranColor.database, geo.size.width)
                     segment(estimateKcal, ScranColor.estimate, geo.size.width)
-                    segment(otherKcal, ScranColor.textMuted, geo.size.width)
+                    segment(otherKcal, ScranColor.textMuted.opacity(0.35), geo.size.width)
                 }
             }
             .frame(height: 8)
             .clipShape(Capsule())
-            .background(Capsule().fill(ScranColor.verified.opacity(0.12)))
+            .background(Capsule().fill(ScranColor.line))
             FlowLayout(spacing: 14, lineSpacing: 6) {
-                legend("Verified", ScranColor.verified, verifiedKcal)
-                legend("Database", ScranColor.database, databaseKcal)
-                legend("Estimate", ScranColor.estimate, estimateKcal)
+                legend("Verified", "checkmark.seal.fill", ScranColor.verified, verifiedKcal)
+                legend("Database", "barcode", ScranColor.database, databaseKcal)
+                legend("Estimate", "camera.metering.center.weighted", ScranColor.estimate, estimateKcal)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -138,10 +136,12 @@ struct EvidenceBar: View {
             .frame(width: total > 0 ? width * (value / total) : 0)
     }
 
-    private func legend(_ name: String, _ color: Color, _ value: Double) -> some View {
+    private func legend(_ name: String, _ glyph: String, _ color: Color, _ value: Double) -> some View {
         let pct = total > 0 ? Int((value / total * 100).rounded()) : 0
         return HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 7, height: 7)
+            Image(systemName: glyph)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(color)
             Text("\(name) \(pct)%")
                 .font(ScranFont.mono(12, relativeTo: .caption))
                 .foregroundStyle(ScranColor.textMuted)

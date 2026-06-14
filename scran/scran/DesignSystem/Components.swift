@@ -89,7 +89,7 @@ struct QuotaPill: View {
     let remaining: Int
     var body: some View {
         let exhausted = remaining <= 0
-        let tint = exhausted ? ScranColor.error : (remaining <= 1 ? ScranColor.estimate : ScranColor.verified)
+        let tint = exhausted ? ScranColor.error : (remaining <= 1 ? ScranColor.estimate : ScranColor.positive)
         HStack(spacing: 7) {
             Image(systemName: exhausted ? "exclamationmark.circle.fill" : "sparkles")
                 .font(.system(size: 13, weight: .bold))
@@ -99,11 +99,9 @@ struct QuotaPill: View {
                 .font(ScranFont.body(13, weight: .bold, relativeTo: .footnote))
                 .lineLimit(1)
         }
-        .foregroundStyle(exhausted ? .white : tint)
+        .foregroundStyle(.white)
         .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(Capsule().fill(exhausted ? tint : tint.opacity(0.12)))
-        .overlay(Capsule().strokeBorder(tint.opacity(exhausted ? 0 : 0.3), lineWidth: 1))
-        .shadow(color: exhausted ? tint.opacity(0.4) : .clear, radius: 8, y: 2)
+        .background(Capsule().fill(tint))
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityElement(children: .combine)
     }
@@ -134,7 +132,6 @@ struct ScranCard<Content: View>: View {
                                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         }
                     }
-                    .shadow(color: .black.opacity(0.05), radius: 12, y: 4)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

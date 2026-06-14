@@ -126,6 +126,15 @@ enum NutrientLevel {
         case .good:     return "GOOD"
         }
     }
+
+    /// Leading glyph so HIGH/GOOD still read at a glance in a mono palette.
+    var glyph: String? {
+        switch self {
+        case .high: return "exclamationmark.triangle.fill"
+        case .good: return "checkmark"
+        case .low, .moderate: return nil
+        }
+    }
 }
 
 extension FocusNutrient {
@@ -256,7 +265,7 @@ struct FocusInsightCard: View {
                                 Text(ScranFormat.grams(amount))
                                     .font(ScranFont.mono(14, weight: .bold, relativeTo: .body))
                                     .foregroundStyle(ScranColor.textPrimary)
-                                LevelChip(text: level.label, color: n.color(for: level))
+                                LevelChip(text: level.label, color: n.color(for: level), glyph: level.glyph)
                             }
                             Text(n.education)
                                 .font(ScranFont.body(13, relativeTo: .footnote))
@@ -283,15 +292,22 @@ struct FocusInsightCard: View {
 struct LevelChip: View {
     let text: String
     let color: Color
+    var glyph: String? = nil
     var body: some View {
-        Text(text)
-            .font(ScranFont.mono(10, weight: .bold, relativeTo: .caption2))
-            .tracking(0.6)
-            .lineLimit(1)
-            .foregroundStyle(color)
-            .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(Capsule().fill(color.opacity(0.14)))
-            .overlay(Capsule().strokeBorder(color.opacity(0.35), lineWidth: 1))
-            .fixedSize(horizontal: true, vertical: false)
+        HStack(spacing: 3) {
+            if let glyph {
+                Image(systemName: glyph)
+                    .font(.system(size: 8, weight: .black))
+            }
+            Text(text)
+                .font(ScranFont.mono(10, weight: .bold, relativeTo: .caption2))
+                .tracking(0.6)
+                .lineLimit(1)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 7).padding(.vertical, 3)
+        .background(Capsule().fill(color.opacity(0.14)))
+        .overlay(Capsule().strokeBorder(color.opacity(0.35), lineWidth: 1))
+        .fixedSize(horizontal: true, vertical: false)
     }
 }

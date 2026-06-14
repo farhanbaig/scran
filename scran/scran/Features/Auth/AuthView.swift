@@ -40,6 +40,7 @@ struct AuthSplash: View {
 struct AuthView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.modelContext) private var context
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Called after a successful sign-in/up (in addition to wiring the session).
     /// Used by onboarding to advance to plan-building, or a sheet to dismiss.
@@ -183,7 +184,7 @@ struct AuthView: View {
         // so the button isn't gated on the checkbox.
         let gated = showEmailAuth && !termsOK
         return SignInWithAppleButton(.signIn, onRequest: configureApple, onCompletion: handleApple)
-            .signInWithAppleButtonStyle(.black)
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 54)
             .clipShape(Capsule())
             .disabled(busy || gated)

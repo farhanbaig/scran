@@ -57,7 +57,7 @@ struct BarcodeScanScreen: View {
         HStack {
             Button { Haptics.tap(); coordinator.cancel() } label: {
                 Image(systemName: "xmark").font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(ScranColor.textPrimary)
+                    .foregroundStyle(.white)
                     .frame(width: 44, height: 44).background(Circle().fill(.black.opacity(0.45)))
             }
             .accessibilityLabel("Close scanner")
@@ -65,7 +65,7 @@ struct BarcodeScanScreen: View {
             Button { torchOn.toggle(); Haptics.selection() } label: {
                 Image(systemName: torchOn ? "bolt.fill" : "bolt.slash")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(torchOn ? ScranColor.database : ScranColor.textPrimary)
+                    .foregroundStyle(torchOn ? .yellow : .white)
                     .frame(width: 44, height: 44).background(Circle().fill(.black.opacity(0.45)))
             }
             .accessibilityLabel(torchOn ? "Turn off flashlight" : "Turn on flashlight")
@@ -75,7 +75,7 @@ struct BarcodeScanScreen: View {
     private func hint(_ text: String) -> some View {
         Text(text)
             .font(ScranFont.mono(13, relativeTo: .footnote))
-            .foregroundStyle(ScranColor.textPrimary)
+            .foregroundStyle(.white)
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(Capsule().fill(.black.opacity(0.5)))
             .padding(.bottom, 40)

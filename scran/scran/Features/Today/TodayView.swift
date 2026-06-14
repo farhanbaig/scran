@@ -16,6 +16,8 @@ struct TodayView: View {
 
     /// Opens the Log sheet (owned by the tab container).
     var onLog: () -> Void = {}
+    /// Jumps straight into a specific capture mode (empty-state shortcuts).
+    var onMode: (LogFlowKind) -> Void = { _ in }
 
     @Query private var plans: [UserPlan]
     @Query private var entries: [FoodEntry]
@@ -24,8 +26,9 @@ struct TodayView: View {
     @State private var health = HealthKitService.shared
     @AppStorage("scran.healthConnected") private var healthConnected = false
 
-    init(onLog: @escaping () -> Void = {}) {
+    init(onLog: @escaping () -> Void = {}, onMode: @escaping (LogFlowKind) -> Void = { _ in }) {
         self.onLog = onLog
+        self.onMode = onMode
         let start = Calendar.current.startOfDay(for: .now)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
         _entries = Query(
@@ -60,7 +63,11 @@ struct TodayView: View {
                     }
                     if let plan {
                         ringCard(plan)
-                        EvidenceBarCard(entries: entries)
+                        // The evidence bar is all-zeros with nothing logged — hide it
+                        // so the empty-state hero + CTA sit higher and pull focus.
+                        if !entries.isEmpty {
+                            EvidenceBarCard(entries: entries)
+                        }
                         if healthConnected, let snap = health.latest, snap.hasActivity {
                             HealthTodayCard(snapshot: snap)
                         }
@@ -92,7 +99,6 @@ struct TodayView: View {
             ZStack {
                 Circle().fill(ScranColor.verified)
                     .frame(width: 50, height: 50)
-                    .shadow(color: ScranColor.verified.opacity(0.4), radius: 10, y: 3)
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .bold))
                     .foregroundStyle(ScranColor.onVerified)
@@ -158,37 +164,52 @@ struct TodayView: View {
     // MARK: - Empty state (teaches the three modes)
 
     private var emptyState: some View {
-        VStack(spacing: 18) {
-            EmptyMealArt(size: 172)
-                .padding(.top, 8)
-            Text("Nothing logged yet")
-                .font(ScranFont.display(24, relativeTo: .title)).textCase(.uppercase)
-                .foregroundStyle(ScranColor.textPrimary)
-            Text("Three ways in — every number gets a badge:")
-                .font(ScranFont.body(15, relativeTo: .body)).foregroundStyle(ScranColor.textMuted)
-            VStack(spacing: 10) {
-                teach(.barcode, "Scan a barcode", "UK database lookup")
-                teach(.label, "Photograph a label", "We read the per-100g table")
-                teach(.estimate, "Photograph a plate", "An honest range, not a fake number")
-            }
-        }
-        .padding(.top, 12)
-    }
-
-    private func teach(_ source: EntrySource, _ title: String, _ sub: String) -> some View {
-        HStack(spacing: 12) {
-            SourceBadge(source: source)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+        VStack(spacing: 16) {
+            EmptyMealArt(size: 160)
+                .padding(.top, 4)
+            VStack(spacing: 6) {
+                Text("Nothing logged yet")
+                    .font(ScranFont.display(26, relativeTo: .title)).textCase(.uppercase)
                     .foregroundStyle(ScranColor.textPrimary)
-                Text(sub).font(ScranFont.body(12, relativeTo: .caption))
+                Text("Snap it, scan it, done.")
+                    .font(ScranFont.body(15, weight: .medium, relativeTo: .body))
                     .foregroundStyle(ScranColor.textMuted)
             }
-            Spacer()
+
+            PrimaryButton(title: "Log your first meal", systemImage: "plus") { onLog() }
+
+            // Three fast ways in — each jumps straight into that capture mode.
+            VStack(spacing: 10) {
+                teach(.estimate, .plate, "Photograph a plate", "An honest range, not a fake number")
+                teach(.label, .label, "Photograph a label", "We read the per-100g table")
+                teach(.barcode, .barcode, "Scan a barcode", "UK database lookup")
+            }
+            .padding(.top, 2)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
+        .padding(.top, 4)
+    }
+
+    private func teach(_ source: EntrySource, _ mode: LogFlowKind, _ title: String, _ sub: String) -> some View {
+        Button { Haptics.tap(); onMode(mode) } label: {
+            HStack(spacing: 12) {
+                SourceBadge(source: source)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(ScranFont.body(14, weight: .semibold, relativeTo: .body))
+                        .foregroundStyle(ScranColor.textPrimary)
+                    Text(sub).font(ScranFont.body(12, relativeTo: .caption))
+                        .foregroundStyle(ScranColor.textMuted)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ScranColor.textMuted)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 14).fill(ScranColor.bg))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(ScranColor.lineStrong))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
     }
 
     private func delete(_ entry: FoodEntry) {

@@ -38,6 +38,18 @@ enum EntrySource: String, CaseIterable, Sendable {
         }
     }
 
+    /// Leading glyph. Carries the source meaning now that "verified" is ink and
+    /// no longer distinguished from the neutral badges by hue alone.
+    var glyph: String {
+        switch self {
+        case .label:    return "checkmark.seal.fill"
+        case .barcode:  return "barcode"
+        case .estimate: return "camera.metering.center.weighted"
+        case .manual:   return "pencil"
+        case .saved:    return "bookmark.fill"
+        }
+    }
+
     /// Label text. Estimate appends a confidence percentage when supplied.
     func text(confidence: Double?) -> String {
         switch self {
@@ -62,11 +74,10 @@ struct SourceBadge: View {
     private var isNeutral: Bool { source == .manual || source == .saved || customText != nil }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(source.color)
-                .frame(width: 7, height: 7)
-                .shadow(color: source.color.opacity(0.8), radius: 5)
+        HStack(spacing: 6) {
+            Image(systemName: customText != nil ? "checkmark.seal.fill" : source.glyph)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(isNeutral ? ScranColor.textMuted : source.color)
             Text(label)
                 .font(ScranFont.mono(11, weight: .bold, relativeTo: .caption2))
                 .tracking(0.88) // ≈ .08em at 11pt

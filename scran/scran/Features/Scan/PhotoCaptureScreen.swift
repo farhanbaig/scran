@@ -14,7 +14,7 @@ import UIKit
 struct PhotoCaptureScreen: View {
     let title: String
     let instruction: String
-    var accent: Color = ScranColor.verified
+    var accent: Color = .white
     /// Framing guide + crop region. `.label` (table) / `.plate` (square) crop the
     /// capture to the box; `.none` keeps the full frame.
     var guide: CaptureGuide = .none

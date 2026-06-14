@@ -21,7 +21,8 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $tab) {
             Tab("Today", systemImage: "flame.fill", value: ScranTab.today) {
-                TodayView(onLog: { Haptics.tap(); showLogSheet = true })
+                TodayView(onLog: { Haptics.tap(); showLogSheet = true },
+                          onMode: { activeFlow = $0 })
             }
             Tab("Progress", systemImage: "chart.line.uptrend.xyaxis", value: ScranTab.progress) {
                 NavigationStack { ProgressTabView() }
@@ -106,7 +107,6 @@ struct ProgressTabView: View {
                     Text(latest > 0 ? String(format: "%.1f", latest) : "—")
                         .font(ScranFont.mono(40, weight: .bold, relativeTo: .largeTitle))
                         .foregroundStyle(ScranColor.verified)
-                        .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                     Text("kg").font(ScranFont.mono(16, relativeTo: .body))
                         .foregroundStyle(ScranColor.textMuted)
                 }
@@ -176,7 +176,6 @@ struct ProgressTabView: View {
                 Rectangle().fill(ScranColor.textPrimary)
                     .frame(width: 3, height: 16)
                     .offset(x: geo.size.width * pos - 1.5)
-                    .shadow(color: .black.opacity(0.25), radius: 2)
             }
         }
         .frame(height: 16)

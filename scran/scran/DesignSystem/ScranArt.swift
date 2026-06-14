@@ -28,11 +28,10 @@ struct ClearoMark: View {
                         style: StrokeStyle(lineWidth: size * 0.135, lineCap: .round))
                 .rotationEffect(.degrees(gap / 2))   // centre the opening at 0° (right)
                 .frame(width: size * 0.78, height: size * 0.78)
-                .shadow(color: ScranColor.verified.opacity(0.35), radius: size * 0.07)
+                .shadow(color: ScranColor.verified.opacity(0.18), radius: size * 0.05)
             Circle()
                 .fill(ScranColor.verified)
                 .frame(width: size * 0.21, height: size * 0.21)
-                .shadow(color: ScranColor.verified.opacity(0.6), radius: size * 0.05)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)

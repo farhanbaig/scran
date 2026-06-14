@@ -163,7 +163,7 @@ struct HistoryListView: View {
                             .foregroundStyle(ScranColor.textMuted)
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.top, 48)
+                    .padding(.top, 24)
                     .frame(maxWidth: .infinity)
                 } else {
                     ForEach(openDays) { day in
@@ -328,7 +328,6 @@ struct DayDetailView: View {
                     Text(ScranFormat.int(day.total.kcal))
                         .font(ScranFont.mono(36, weight: .bold, relativeTo: .largeTitle))
                         .foregroundStyle(ScranColor.verified)
-                        .shadow(color: ScranColor.verified.opacity(0.5), radius: 12)
                     Text("kcal").font(ScranFont.mono(15, relativeTo: .body))
                         .foregroundStyle(ScranColor.textMuted)
                     Spacer()
